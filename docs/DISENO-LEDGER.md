@@ -61,7 +61,7 @@ Se pasa de Prisma/Postgres a **moléculas SQLite**, una por entidad, siguiendo `
 
 **Estados de un gasto:** `PENDIENTE` → `APROBADO` | `RECHAZADO`. La decisión es final: un gasto decidido no vuelve a cambiar.
 
-**Categorías por defecto** (de `ledger-ocr`, con tasas neerlandesas): Material de oficina, Transporte, Representación, Seguros. Las tasas BTW son 0%, 9% y 21%. El valor deducible se define por categoría. _Confirmar con el contador._
+**Categorías por defecto** (de `ledger-ocr`, con tasas neerlandesas): Material de oficina, Transporte, Representación, Seguros. Las tasas BTW son 0%, 9% y 21%. El valor deducible se define por categoría. El contador puede crear, editar y eliminar categorías. _Confirmar la deducibilidad de cada categoría por defecto._
 
 ## 4. Invitación y activación
 
@@ -73,20 +73,19 @@ En `ledger-ocr`, el contador invita a un cliente con un enlace de 48 horas, de u
 
 ## 5. Estado de cuenta
 
-**Pendiente de definición con el contador.** Propuesta inicial, para confirmar:
+Definido con el contador:
 
-- Periodo: mes o trimestre, elegido por el contador.
-- Incluye: solo gastos `APROBADO`.
+- Periodo: mensual y trimestral. El contador elige cuál generar.
+- Incluye: solo gastos `APROBADO`, y saldo inicial.
 - Muestra: saldo de gastos, total por categoría, total de BTW por tasa, total deducible.
 - Moneda: EUR.
-- ¿Hay saldo inicial? ¿Hay ingresos o solo gastos? _Confirmar._
 
 ## 6. Interfaz e idiomas
 
 - Librería: `react-i18next`, sobre el dashboard de React + Vite de `bio-template`.
 - Catálogos: se reutilizan `messages/es.json`, `nl.json` y `en.json` de `ledger-ocr`, con las mismas claves.
-- Idioma por defecto: **nl**. _Confirmar._
-- Idioma por usuario, guardado en su perfil o cookie.
+- Idioma por defecto: **nl**. El contador puede cambiarlo por cliente, porque la mayoría de sus clientes hablan español o son latinos.
+- Idioma por cliente, guardado en el registro del cliente. El cliente puede cambiarlo en su perfil.
 
 **Gap a resolver:** el dashboard de `bio-template` solo conoce el perfil `domain`. Las secciones del ledger necesitan un registro de secciones por perfil. Se resuelve como primer cambio técnico del proyecto.
 
@@ -119,11 +118,13 @@ Resueltas:
 3. El cliente registra sus gastos. El contador los revisa.
 4. Un estudio tiene un solo contador.
 
+5. El estado de cuenta es mensual y trimestral, e incluye saldo inicial.
+6. Las categorías las edita el contador. Las categorías por defecto son un punto de partida.
+7. El idioma por defecto es nl. Se puede cambiar por cliente.
+
 Pendientes:
 
-5. ¿Qué periodo usa el estado de cuenta, y qué incluye exactamente?
-6. ¿Las categorías y su deducibilidad las define el contador o vienen fijas?
-7. ¿Idioma por defecto: nl?
+- ¿Qué deducibilidad tiene cada categoría por defecto? Confirmar con el contador.
 
 ## 10. Próximos pasos
 
