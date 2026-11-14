@@ -14,7 +14,12 @@ import type { HealthStatusCalculator } from "./services/HealthStatusCalculator.j
 import type { AlertService } from "./services/AlertService.js";
 import type { AuditLogger } from "./services/AuditLogger.js";
 import type { TenantAuthService } from "./services/TenantAuthService.js";
+import type { AccountantAuthService } from "./services/AccountantAuthService.js";
 import type { LoginRateLimiter } from "./middleware/loginRateLimiter.js";
+import {
+  setupAccountantAuthRoutes,
+  setupAccountantTenantRoutes,
+} from "./routes/AccountantAuthRoutes.js";
 
 import { setupDashboardRoutes } from "./routes/DashboardRoutes.js";
 import { setupSchedulerRoutes } from "./routes/SchedulerRoutes.js";
@@ -52,6 +57,7 @@ export interface RouteDependencies {
   composedRegistry: Registry;
   // ── Auth de tenant (opcional, requiere plataforma) ──
   tenantAuthService?: TenantAuthService;
+  accountantAuthService?: AccountantAuthService;
   loginRateLimiter?: LoginRateLimiter;
   // ── Plataforma (opcional) ──
   platformRegistry?: TenantRegistryService;
@@ -134,6 +140,25 @@ const ROUTE_REGISTRATIONS: RouteRegistration[] = [
           d.tenantAuthService,
           d.loginRateLimiter,
           d.platformAuditLogger,
+        );
+      }
+    },
+  },
+  {
+    name: "AccountantAuth",
+    setup: (s, d) => {
+      if (d.accountantAuthService && d.loginRateLimiter) {
+        if (d.platformRegistry && d.tenantAuthService) {
+          setupAccountantTenantRoutes(
+            s,
+            d.platformRegistry,
+            d.tenantAuthService,
+          );
+        }
+        setupAccountantAuthRoutes(
+          s,
+          d.accountantAuthService,
+          d.loginRateLimiter,
         );
       }
     },

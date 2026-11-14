@@ -39,6 +39,7 @@ import { HealthStatusCalculator } from "./services/HealthStatusCalculator.js";
 import { AlertService } from "./services/AlertService.js";
 import { AuditLogger } from "./services/AuditLogger.js";
 import { TenantAuthService } from "./services/TenantAuthService.js";
+import { AccountantAuthService } from "./services/AccountantAuthService.js";
 import { LoginRateLimiter } from "./middleware/loginRateLimiter.js";
 import Database from "better-sqlite3";
 
@@ -195,6 +196,7 @@ async function main() {
   // ─── Tenant Auth Services ─────────────────────────────────────────────────
   // Instantiate tenant authentication services when platform is available.
   let tenantAuthService: TenantAuthService | undefined;
+  let accountantAuthService: AccountantAuthService | undefined;
   const loginRateLimiter = new LoginRateLimiter();
 
   // La compuerta global acepta JWT válidos; cada ruta decide qué puede hacer.
@@ -210,6 +212,9 @@ async function main() {
   if (platformRegistry) {
     tenantAuthService = new TenantAuthService(platformRegistry);
     log.info("Tenant Auth services initialized");
+    if (platformDb) {
+      accountantAuthService = new AccountantAuthService(platformDb);
+    }
   }
 
   health.start(Number(process.env.PORT) || 3000);
@@ -228,6 +233,7 @@ async function main() {
     perfMonitor,
     composedRegistry,
     tenantAuthService,
+    accountantAuthService,
     loginRateLimiter,
     platformRegistry,
     platformAuditLogger,

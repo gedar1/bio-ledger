@@ -265,6 +265,12 @@ export class TenantAuthService {
    * Regenerate API key for a tenant.
    * Generates a new key, hashes it, updates the registry, and returns the new raw key.
    */
+  /** true si el tenant existe y su dueño (owner_id) es la cuenta indicada. */
+  accountOwnsTenant(accountId: number, tenantId: string): boolean {
+    const tenant = this.registry.getById(tenantId);
+    return tenant !== null && tenant.owner_id === String(accountId);
+  }
+
   async regenerateApiKey(
     tenantId: string,
     maxRole: TenantRole,
