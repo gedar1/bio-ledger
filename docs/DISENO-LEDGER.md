@@ -61,7 +61,7 @@ Se pasa de Prisma/Postgres a **moléculas SQLite**, una por entidad, siguiendo `
 
 **Estados de un gasto:** `PENDIENTE` → `APROBADO` | `RECHAZADO`. La decisión es final: un gasto decidido no vuelve a cambiar.
 
-**Categorías por defecto** (de `ledger-ocr`, con tasas neerlandesas): Material de oficina, Transporte, Representación, Seguros. Las tasas BTW son 0%, 9% y 21%. El valor deducible se define por categoría. El contador puede crear, editar y eliminar categorías. _Confirmar la deducibilidad de cada categoría por defecto._
+**Categorías por defecto** (de `ledger-ocr`, con tasas neerlandesas): Material de oficina, Transporte, Representación, Seguros. Las tasas BTW son 0%, 9% y 21%. El valor deducible se define por categoría. Los valores por defecto son una propuesta: el contador los confirma o los cambia, y el programa no decide la deducibilidad. El contador puede crear, editar y eliminar categorías.
 
 ## 4. Invitación y activación
 
