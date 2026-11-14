@@ -111,6 +111,18 @@ export class UsageMetricsCollector {
       );
     }
 
+    // Un tenant sin fila en platform_tenants no puede registrar métricas (clave foránea).
+    // Se omite el evento en vez de fallar en cada petición.
+    const registered = this.db
+      .prepare("SELECT 1 FROM platform_tenants WHERE tenant_id = ?")
+      .get(tenantId);
+    if (!registered) {
+      log.debug(
+        { tenantId, eventType },
+        "Métrica omitida: tenant sin registro",
+      );
+      return;
+    }
     const timestamp = new Date().toISOString();
 
     const stmt = this.db.prepare(`

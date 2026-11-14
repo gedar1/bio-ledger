@@ -117,12 +117,14 @@ async function main() {
       // Create platform tables if they don't exist
       initializePlatformSchema(platformDb);
 
-      // Las métricas del tenant por defecto necesitan su fila en platform_tenants.
-      ensureTenantRecord(
-        platformDb,
-        getSingleTenantId(),
-        process.env.TENANT_PROFILE || getDefaultProfile(),
-      );
+      // En modo single, el tenant único necesita su fila en platform_tenants para las métricas.
+      // En studio cada tenant se registra al crearse, así que no se crea un tenant 'default'.
+      if (getDeploymentMode() === "single")
+        ensureTenantRecord(
+          platformDb,
+          getSingleTenantId(),
+          process.env.TENANT_PROFILE || getDefaultProfile(),
+        );
 
       // Instantiate and initialize platform services
       platformRegistry = new TenantRegistryService();
