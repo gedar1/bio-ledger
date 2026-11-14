@@ -97,9 +97,6 @@ export class ReflexMolecule implements IMolecule {
     this.db = new Database(this.dbPath);
     this.db.pragma("journal_mode = WAL");
 
-    // Ejecutar script de migración para limpiar tablas obsoletas
-    this.runMigration();
-
     this.initTable();
 
     log.info({ path: this.dbPath }, "ReflexMolecule conectada");
@@ -125,24 +122,6 @@ export class ReflexMolecule implements IMolecule {
     `);
     // Add new columns if they don't exist (backward compatible)
     this.addColumnIfNotExists("schema_versions", "TEXT DEFAULT NULL");
-  }
-
-  private runMigration(): void {
-    try {
-      // Drop obsolete tables from old schema
-      // reflexes_atomic and reflex_dependencies were for atomic reflexes
-      // Now: tools.json = atoms, reflexes table = sequences only
-      this.db.exec("DROP TABLE IF EXISTS reflex_dependencies");
-      this.db.exec("DROP TABLE IF EXISTS reflexes_atomic");
-
-      log.info("Migration: Obsolete reflex tables cleaned up");
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      log.warn(
-        { error: message },
-        "Migration: Failed to clean obsolete tables (may not exist)",
-      );
-    }
   }
 
   private addColumnIfNotExists(column: string, definition: string): void {
