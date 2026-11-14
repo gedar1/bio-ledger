@@ -68,6 +68,17 @@ export function resolveTenantAccess(
 
   if (tenantAuthService) {
     const ctx = resolveRequestAuth(authHeader, tenantAuthService);
+    if (
+      !("error" in ctx) &&
+      ctx.auth_type === "accountant_jwt" &&
+      ctx.account_id !== undefined
+    ) {
+      // El contador solo actúa sobre tenants que le pertenecen (owner_id).
+      if (!requested) return denied("tenantId requerido");
+      return tenantAuthService.accountOwnsTenant(ctx.account_id, requested)
+        ? { ok: true, tenantId: requested }
+        : denied("El tenant no pertenece a esta cuenta");
+    }
     if (!("error" in ctx) && ctx.auth_type === "tenant_jwt") {
       return { ok: true, tenantId: ctx.tenant_id };
     }
@@ -95,6 +106,15 @@ export function resolvePlatformAccess(
 
   return denied("Requiere credenciales de plataforma");
 }
+
+/**
+ * Endpoints que acepta un token de contador. Cada uno debe comprobar la propiedad
+ * del tenant con resolveTenantAccess. Cualquier otro endpoint queda prohibido.
+ */
+const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
+  "chat",
+  "accountant/tenants",
+]);
 
 // ─── Permisos por endpoint ──────────────────────────────────────────────────
 
@@ -178,6 +198,9 @@ export function buildTokenVerifier(
     if (!service) return "invalid";
 
     const ctx = resolveRequestAuth(authHeader, service);
+    if (!("error" in ctx) && ctx.auth_type === "accountant_jwt") {
+      return ACCOUNTANT_ENDPOINTS.has(endpoint) ? "allow" : "forbidden";
+    }
     if ("error" in ctx || ctx.auth_type !== "tenant_jwt") return "invalid";
 
     // Un rol heredado o desconocido no está en ROLE_LEVEL y queda fuera (fail-closed)

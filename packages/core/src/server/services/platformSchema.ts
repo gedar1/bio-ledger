@@ -142,6 +142,16 @@ export function initializePlatformSchema(
 
   migratePlatformTenantsProfiles(db);
 
+  // ─── Cuenta del contador (un solo registro por despliegue) ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS platform_accounts (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // ─── Usage Metrics (append-only event log) ──────────────────────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS platform_metrics (

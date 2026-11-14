@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { createLogger } from "../../config/logger.js";
 import { validatePlatformToken } from "./platformAuth.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
+import { AccountantAuthService } from "../services/AccountantAuthService.js";
 
 const log = createLogger("TenantAuth");
 
@@ -16,7 +17,9 @@ export interface TenantContext {
   tenant_id: string;
   role: "platform_owner" | "tenant_owner" | "operator" | "viewer";
   profile: string;
-  auth_type: "tenant_jwt" | "platform_jwt" | "api_secret";
+  auth_type: "tenant_jwt" | "platform_jwt" | "api_secret" | "accountant_jwt";
+  /** Solo en accountant_jwt: cuenta del contador que hizo la petición. */
+  account_id?: number;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -60,6 +63,21 @@ export function resolveRequestAuth(
     const decoded = decodeTokenPayload(token);
 
     if (decoded) {
+      // Token de contador: no tiene tenant_id. Su alcance se decide en resolveTenantAccess,
+      // que comprueba que el tenant pedido pertenece a la cuenta.
+      if (decoded.kind === "accountant") {
+        const claims = AccountantAuthService.verifyToken(token);
+        if (!claims) {
+          return { error: "Authentication required", status: 401 };
+        }
+        return {
+          tenant_id: "*",
+          role: "tenant_owner",
+          profile: DEFAULT_PROFILE,
+          auth_type: "accountant_jwt",
+          account_id: claims.account_id,
+        };
+      }
       // Check if it's a Tenant JWT (has tenant_id field)
       if (typeof decoded.tenant_id === "string") {
         return resolveTenantJwt(token, tenantAuthService);
