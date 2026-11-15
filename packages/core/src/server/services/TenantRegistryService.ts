@@ -28,6 +28,7 @@ const TenantRecordSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   token_limit: z.number().int().min(0).default(0),
+  owner_id: z.string().max(64).nullable(),
   last_activity: z.string().nullable(),
 });
 
@@ -45,6 +46,7 @@ export const CreateTenantSchema = z.object({
   display_name: z.string().min(1).max(128),
   profile: TenantProfileSchema,
   token_limit: z.number().int().min(0).optional(),
+  owner_id: z.string().min(1).max(64).optional(),
 });
 
 export type CreateTenantInput = z.infer<typeof CreateTenantSchema>;
@@ -66,6 +68,7 @@ interface TenantRow {
   updated_at: string;
   last_activity: string | null;
   api_key_hash: string | null;
+  owner_id: string | null;
 }
 
 // ─── Callback type for profile change notifications ─────────────────────────
@@ -160,8 +163,8 @@ export class TenantRegistryService {
 
     // Insert record into platform_tenants
     const stmt = this.db.prepare(`
-      INSERT INTO platform_tenants (tenant_id, display_name, profile, status, token_limit, created_at, updated_at, last_activity)
-      VALUES (?, ?, ?, 'active', ?, ?, ?, NULL)
+      INSERT INTO platform_tenants (tenant_id, display_name, profile, status, token_limit, owner_id, created_at, updated_at, last_activity)
+      VALUES (?, ?, ?, 'active', ?, ?, ?, ?, NULL)
     `);
 
     stmt.run(
@@ -169,6 +172,7 @@ export class TenantRegistryService {
       validated.display_name,
       validated.profile,
       tokenLimit,
+      validated.owner_id ?? null,
       now,
       now,
     );
@@ -182,6 +186,7 @@ export class TenantRegistryService {
       profile: validated.profile,
       status: "active",
       token_limit: tokenLimit,
+      owner_id: validated.owner_id ?? null,
       created_at: now,
       updated_at: now,
       last_activity: null,
@@ -208,7 +213,7 @@ export class TenantRegistryService {
     }
 
     const stmt = this.db.prepare(`
-      SELECT tenant_id, display_name, profile, status, token_limit, created_at, updated_at, last_activity
+      SELECT tenant_id, display_name, profile, status, token_limit, owner_id, created_at, updated_at, last_activity
       FROM platform_tenants
       WHERE tenant_id = ?
     `);
@@ -233,7 +238,7 @@ export class TenantRegistryService {
     }
 
     let sql = `
-      SELECT tenant_id, display_name, profile, status, token_limit, created_at, updated_at, last_activity
+      SELECT tenant_id, display_name, profile, status, token_limit, owner_id, created_at, updated_at, last_activity
       FROM platform_tenants
     `;
 
@@ -443,6 +448,66 @@ export class TenantRegistryService {
   /**
    * Store the bcrypt hash of an API key for a tenant.
    */
+  /** Credenciales de acceso por contraseña de un tenant. null si el tenant no existe. */
+  getCredentials(tenantId: string): {
+    tenant_id: string;
+    profile: string;
+    status: string;
+    api_key_role: string;
+    password_hash: string | null;
+    must_change_password: boolean;
+  } | null {
+    if (!this.db) {
+      throw new Error(
+        "TenantRegistryService not initialized — call initialize() first",
+      );
+    }
+    const row = this.db
+      .prepare(
+        `SELECT tenant_id, profile, status, api_key_role, password_hash, must_change_password
+         FROM platform_tenants WHERE tenant_id = ?`,
+      )
+      .get(tenantId) as
+      | {
+          tenant_id: string;
+          profile: string;
+          status: string;
+          api_key_role: string;
+          password_hash: string | null;
+          must_change_password: number;
+        }
+      | undefined;
+    if (!row) return null;
+    return { ...row, must_change_password: row.must_change_password === 1 };
+  }
+
+  /** Guarda el hash de la contraseña de un tenant y si debe cambiarla al entrar. */
+  setPasswordCredentials(
+    tenantId: string,
+    passwordHash: string,
+    mustChange: boolean,
+    role: "viewer" | "operator" | "tenant_owner" = "operator",
+  ): void {
+    if (!this.db) {
+      throw new Error(
+        "TenantRegistryService not initialized — call initialize() first",
+      );
+    }
+    this.db
+      .prepare(
+        `UPDATE platform_tenants
+         SET password_hash = ?, must_change_password = ?, api_key_role = ?, updated_at = ?
+         WHERE tenant_id = ?`,
+      )
+      .run(
+        passwordHash,
+        mustChange ? 1 : 0,
+        role,
+        new Date().toISOString(),
+        tenantId,
+      );
+  }
+
   setApiKeyHash(
     tenantId: string,
     hash: string,
@@ -594,6 +659,7 @@ export class TenantRegistryService {
       profile: row.profile as TenantProfileType,
       status: row.status as TenantStatus,
       token_limit: row.token_limit,
+      owner_id: row.owner_id,
       created_at: row.created_at,
       updated_at: row.updated_at,
       last_activity: row.last_activity,

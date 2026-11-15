@@ -1,3 +1,6 @@
+// Debe ir primero: los imports de ESM se evalúan antes que el resto del archivo, y
+// apiAuth/tenantAuth leen API_SECRET al cargarse.
+import "dotenv/config";
 import { getDefaultProfile } from "../config/profileRegistry.js";
 import {
   initTelemetry,
@@ -39,6 +42,7 @@ import { HealthStatusCalculator } from "./services/HealthStatusCalculator.js";
 import { AlertService } from "./services/AlertService.js";
 import { AuditLogger } from "./services/AuditLogger.js";
 import { TenantAuthService } from "./services/TenantAuthService.js";
+import { AccountantAuthService } from "./services/AccountantAuthService.js";
 import { LoginRateLimiter } from "./middleware/loginRateLimiter.js";
 import Database from "better-sqlite3";
 
@@ -117,12 +121,14 @@ async function main() {
       // Create platform tables if they don't exist
       initializePlatformSchema(platformDb);
 
-      // Las métricas del tenant por defecto necesitan su fila en platform_tenants.
-      ensureTenantRecord(
-        platformDb,
-        getSingleTenantId(),
-        process.env.TENANT_PROFILE || getDefaultProfile(),
-      );
+      // En modo single, el tenant único necesita su fila en platform_tenants para las métricas.
+      // En studio cada tenant se registra al crearse, así que no se crea un tenant 'default'.
+      if (getDeploymentMode() === "single")
+        ensureTenantRecord(
+          platformDb,
+          getSingleTenantId(),
+          process.env.TENANT_PROFILE || getDefaultProfile(),
+        );
 
       // Instantiate and initialize platform services
       platformRegistry = new TenantRegistryService();
@@ -193,6 +199,7 @@ async function main() {
   // ─── Tenant Auth Services ─────────────────────────────────────────────────
   // Instantiate tenant authentication services when platform is available.
   let tenantAuthService: TenantAuthService | undefined;
+  let accountantAuthService: AccountantAuthService | undefined;
   const loginRateLimiter = new LoginRateLimiter();
 
   // La compuerta global acepta JWT válidos; cada ruta decide qué puede hacer.
@@ -208,6 +215,9 @@ async function main() {
   if (platformRegistry) {
     tenantAuthService = new TenantAuthService(platformRegistry);
     log.info("Tenant Auth services initialized");
+    if (platformDb) {
+      accountantAuthService = new AccountantAuthService(platformDb);
+    }
   }
 
   health.start(Number(process.env.PORT) || 3000);
@@ -226,6 +236,7 @@ async function main() {
     perfMonitor,
     composedRegistry,
     tenantAuthService,
+    accountantAuthService,
     loginRateLimiter,
     platformRegistry,
     platformAuditLogger,
