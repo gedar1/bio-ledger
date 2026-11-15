@@ -51,10 +51,63 @@ export type TokenDecision =
   | "password_change_required"
   | "invalid";
 
+/**
+ * Endpoints que no existen en este producto. Se rechazan para todos, incluida la clave
+ * de operador y con o sin API_SECRET. Son de escritura de plataforma, tareas
+ * automáticas o del motor genérico que no forman parte del producto.
+ */
+export const BLOCKED_ENDPOINTS: ReadonlySet<string> = new Set([
+  // Escritura de plataforma: el contador crea clientes con accountant/tenants.
+  "platform/tenants",
+  "platform/tenants/deactivate",
+  "platform/tenants/reactivate",
+  "platform/tenants/limits",
+  "platform/tenants/profile",
+  "platform/auth/login",
+  "template/execute",
+  // Tareas automáticas y monitores.
+  "monitor/add",
+  "scheduler/add",
+  "scheduler/remove",
+  "scheduler/pause",
+  "scheduler/resume",
+  "scheduler/trigger",
+  // Motor genérico del template, fuera del producto. El chat sí se queda.
+  "settings",
+  "tenants",
+  "history",
+  "tools",
+  "mutations",
+  "reflex",
+  "perf",
+  "websocket",
+  "tenant-profile",
+  "templates",
+  "registry",
+  "role",
+]);
+
+/** Endpoints de solo lectura que el operador puede usar para diagnóstico. */
+export const OPERATOR_READ_ENDPOINTS: ReadonlySet<string> = new Set([
+  "logs",
+  "logs/stream",
+  "platform/metrics",
+  "platform/metrics/tenant",
+  "platform/alerts",
+  "circuit-breaker",
+  "scheduler/activity",
+]);
+
 export function checkAuth(
   req: IncomingMessage,
   verifyToken?: (authHeader: string, path: string) => TokenDecision,
 ): { error: string; status: number } | null {
+  // Se revisa antes que el secret: aunque no haya API_SECRET, estos endpoints no existen.
+  const endpoint = (req.url || "/").split("?")[0].replace(/^\/api\//, "");
+  if (BLOCKED_ENDPOINTS.has(endpoint)) {
+    return { error: "Endpoint no disponible en este despliegue", status: 404 };
+  }
+
   // Si no hay secret configurado, auth deshabilitada (modo desarrollo)
   if (!API_SECRET) {
     return null;
