@@ -41,6 +41,11 @@ const IdSchema = z.object({ id: z.number().int().positive() });
 
 const PeriodSchema = z.object({ periodo: z.string() });
 
+const AnnulSchema = z.object({
+  id: z.number().int().positive(),
+  note: z.string().max(500),
+});
+
 const CategoryDeducibleSchema = z.object({
   categoria_id: z.number().int().positive(),
   deducible: z.boolean(),
@@ -234,6 +239,21 @@ export function setupLedgerRoutes(
       const store = await storeFor(tenantId);
       store.setCategoryDeducible(input.categoria_id, input.deducible);
       return respond(200, successEnvelope({ categories: store.listCategories() }));
+    } catch (error: unknown) {
+      return failure(error);
+    }
+  });
+
+  health.registerData("ledger/accountant/expenses/annul", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = accountantTenant(body._authHeader, body.tenant_id);
+    if (!tenantId) return notFound();
+    try {
+      const input = AnnulSchema.parse(body);
+      const store = await storeFor(tenantId);
+      const expense = store.annulExpense(input.id, "contador", input.note);
+      log.info({ tenantId, id: input.id }, "Gasto anulado");
+      return respond(200, successEnvelope({ expense }));
     } catch (error: unknown) {
       return failure(error);
     }

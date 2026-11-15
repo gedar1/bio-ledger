@@ -1,10 +1,12 @@
 /**
  * Reglas puras de los gastos. Sin efectos ni acceso a base de datos.
  *
- * Estados: PENDIENTE → APROBADO | RECHAZADO. Una decisión es final.
+ * Estados: PENDIENTE → APROBADO | RECHAZADO. Una decisión es final, salvo la anulación:
+ * un gasto APROBADO puede pasar a ANULADO con una nota. La anulación queda registrada y
+ * el gasto deja de sumar en el estado de cuenta.
  */
 
-export const EXPENSE_STATES = ["PENDIENTE", "APROBADO", "RECHAZADO"] as const;
+export const EXPENSE_STATES = ["PENDIENTE", "APROBADO", "RECHAZADO", "ANULADO"] as const;
 export type ExpenseState = (typeof EXPENSE_STATES)[number];
 
 export const EXPENSE_CREATORS = ["ACCOUNTANT", "CLIENT"] as const;
@@ -34,4 +36,9 @@ export function validateRejectionNote(note: string | undefined): string | null {
     return `La nota de rechazo debe tener al menos ${MIN_REJECTION_NOTE_LENGTH} caracteres`;
   }
   return null;
+}
+
+/** Solo un gasto aprobado puede anularse. La anulación es explícita y deja nota. */
+export function canAnnul(state: ExpenseState): boolean {
+  return state === "APROBADO";
 }
