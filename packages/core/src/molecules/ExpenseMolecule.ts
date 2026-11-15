@@ -43,16 +43,26 @@ export interface Expense {
   revisado_por: string | null;
   revisado_en: string | null;
   referencia_archivo: string | null;
+  /** Si el gasto tiene factura o recibo que lo respalde. */
+  con_soporte: boolean;
 }
 
-/** Datos de un gasto que escribe quien lo registra. Importe en céntimos, sin decimales. */
+/**
+ * Datos de un gasto. El importe incluye el BTW, como aparece en el recibo, y va en céntimos.
+ * `con_soporte` no se marca salvo que el cliente lo indique.
+ */
 export const ExpenseInputSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "fecha en formato AAAA-MM-DD"),
   importe_cents: z.number().int().positive(),
-  tasa_btw: z.union([z.literal(BTW_RATES[0]), z.literal(BTW_RATES[1]), z.literal(BTW_RATES[2])]),
+  tasa_btw: z.union([
+    z.literal(BTW_RATES[0]),
+    z.literal(BTW_RATES[1]),
+    z.literal(BTW_RATES[2]),
+  ]),
   concepto: z.string().trim().min(1).max(200),
   categoria_id: z.number().int().positive(),
   referencia_archivo: z.string().max(500).nullable().optional(),
+  con_soporte: z.boolean().optional(),
 });
 export type ExpenseInput = z.infer<typeof ExpenseInputSchema>;
 
@@ -65,6 +75,14 @@ export class ExpenseRuleError extends Error {
     super(message);
     this.name = "ExpenseRuleError";
   }
+}
+
+interface ExpenseRow extends Omit<Expense, "con_soporte"> {
+  con_soporte: number;
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return { ...row, con_soporte: row.con_soporte === 1 };
 }
 
 /**
@@ -118,9 +136,23 @@ export class ExpenseMolecule implements IMolecule {
       CREATE INDEX IF NOT EXISTS idx_gastos_estado ON gastos(estado);
     `);
 
-    const count = this.db.prepare("SELECT COUNT(*) AS n FROM categorias").get() as { n: number };
+    // Bases creadas antes de esta columna. Sin soporte por defecto: hasta confirmarlo, no es deducible.
+    const columns = this.db
+      .prepare("PRAGMA table_info(gastos)")
+      .all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "con_soporte")) {
+      this.db.exec(
+        "ALTER TABLE gastos ADD COLUMN con_soporte INTEGER NOT NULL DEFAULT 0 CHECK(con_soporte IN (0, 1))",
+      );
+    }
+
+    const count = this.db
+      .prepare("SELECT COUNT(*) AS n FROM categorias")
+      .get() as { n: number };
     if (count.n === 0) {
-      const insert = this.db.prepare("INSERT INTO categorias (nombre) VALUES (?)");
+      const insert = this.db.prepare(
+        "INSERT INTO categorias (nombre) VALUES (?)",
+      );
       for (const nombre of DEFAULT_CATEGORY_NAMES) insert.run(nombre);
     }
   }
@@ -147,15 +179,25 @@ export class ExpenseMolecule implements IMolecule {
   }
 
   listExpenses(estado?: ExpenseState): Expense[] {
-    const rows = estado
-      ? this.db.prepare("SELECT * FROM gastos WHERE estado = ? ORDER BY fecha DESC, id DESC").all(estado)
-      : this.db.prepare("SELECT * FROM gastos ORDER BY fecha DESC, id DESC").all();
-    return rows as Expense[];
+    const rows = (
+      estado
+        ? this.db
+            .prepare(
+              "SELECT * FROM gastos WHERE estado = ? ORDER BY fecha DESC, id DESC",
+            )
+            .all(estado)
+        : this.db
+            .prepare("SELECT * FROM gastos ORDER BY fecha DESC, id DESC")
+            .all()
+    ) as ExpenseRow[];
+    return rows.map(toExpense);
   }
 
   getExpense(id: number): Expense | null {
-    const row = this.db.prepare("SELECT * FROM gastos WHERE id = ?").get(id);
-    return (row as Expense | undefined) ?? null;
+    const row = this.db.prepare("SELECT * FROM gastos WHERE id = ?").get(id) as
+      | ExpenseRow
+      | undefined;
+    return row ? toExpense(row) : null;
   }
 
   /** Alta de un gasto. El creador lo marca el servidor, no el cuerpo de la petición. */
@@ -164,8 +206,8 @@ export class ExpenseMolecule implements IMolecule {
     this.assertCategoryExists(data.categoria_id);
     const info = this.db
       .prepare(
-        `INSERT INTO gastos (fecha, importe_cents, tasa_btw, concepto, categoria_id, creado_por, referencia_archivo)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO gastos (fecha, importe_cents, tasa_btw, concepto, categoria_id, creado_por, referencia_archivo, con_soporte)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         data.fecha,
@@ -175,23 +217,40 @@ export class ExpenseMolecule implements IMolecule {
         data.categoria_id,
         creator,
         data.referencia_archivo ?? null,
+        data.con_soporte ? 1 : 0,
       );
-    return this.getExpense(Number(info.lastInsertRowid)) as Expense;
+    return this.requireExpense(Number(info.lastInsertRowid));
   }
 
   /** Edición por el cliente. Solo gastos propios y pendientes. */
   updateExpenseByClient(id: number, input: ExpenseInput): Expense {
     const current = this.requireExpense(id);
     if (!canClientModify(current.estado, current.creado_por)) {
-      throw new ExpenseRuleError("NOT_ALLOWED", "Solo puedes editar tus gastos pendientes");
+      throw new ExpenseRuleError(
+        "NOT_ALLOWED",
+        "Solo puedes editar tus gastos pendientes",
+      );
     }
+    return this.writeExpenseFields(id, input);
+  }
+
+  /** Corrección por el contador antes de decidir: tasa, importe, categoría o soporte. */
+  updateExpenseByAccountant(id: number, input: ExpenseInput): Expense {
+    const current = this.requireExpense(id);
+    if (!canDecide(current.estado)) {
+      throw new ExpenseRuleError("NOT_ALLOWED", "Este gasto ya fue decidido");
+    }
+    return this.writeExpenseFields(id, input);
+  }
+
+  private writeExpenseFields(id: number, input: ExpenseInput): Expense {
     const data = ExpenseInputSchema.parse(input);
     this.assertCategoryExists(data.categoria_id);
     this.db
       .prepare(
         `UPDATE gastos SET fecha = ?, importe_cents = ?, tasa_btw = ?, concepto = ?,
-           categoria_id = ?, referencia_archivo = ?
-         WHERE id = ?`,
+           categoria_id = ?, referencia_archivo = ?, con_soporte = ?
+         WHERE id = ? AND estado = 'PENDIENTE'`,
       )
       .run(
         data.fecha,
@@ -200,6 +259,7 @@ export class ExpenseMolecule implements IMolecule {
         data.concepto,
         data.categoria_id,
         data.referencia_archivo ?? null,
+        data.con_soporte ? 1 : 0,
         id,
       );
     return this.requireExpense(id);
@@ -235,12 +295,16 @@ export class ExpenseMolecule implements IMolecule {
 
   private requireExpense(id: number): Expense {
     const expense = this.getExpense(id);
-    if (!expense) throw new ExpenseRuleError("NOT_FOUND", "Gasto no encontrado");
+    if (!expense)
+      throw new ExpenseRuleError("NOT_FOUND", "Gasto no encontrado");
     return expense;
   }
 
   private assertCategoryExists(categoryId: number): void {
-    const row = this.db.prepare("SELECT 1 FROM categorias WHERE id = ?").get(categoryId);
-    if (!row) throw new ExpenseRuleError("VALIDATION", "Categoría no encontrada");
+    const row = this.db
+      .prepare("SELECT 1 FROM categorias WHERE id = ?")
+      .get(categoryId);
+    if (!row)
+      throw new ExpenseRuleError("VALIDATION", "Categoría no encontrada");
   }
 }
