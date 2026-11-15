@@ -11,6 +11,7 @@ import {
   ExpenseRuleError,
 } from "../../molecules/ExpenseMolecule.js";
 import { successEnvelope, errorEnvelope } from "../utils/apiEnvelope.js";
+import { buildStatement, parsePeriod } from "../../atoms/statement.js";
 
 const log = createLogger("LedgerRoutes");
 
@@ -37,6 +38,13 @@ const DecideSchema = z.object({
 });
 
 const IdSchema = z.object({ id: z.number().int().positive() });
+
+const PeriodSchema = z.object({ periodo: z.string() });
+
+const CategoryDeducibleSchema = z.object({
+  categoria_id: z.number().int().positive(),
+  deducible: z.boolean(),
+});
 
 /** Convierte un error de negocio o de validación en respuesta HTTP. */
 function failure(error: unknown): LedgerResponse {
@@ -187,6 +195,65 @@ export function setupLedgerRoutes(
       return failure(error);
     }
   });
+  // ─── Estado de cuenta ─────────────────────────────────────────────────────
+
+  health.registerData("ledger/statement", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = clientTenant(body._authHeader);
+    if (!tenantId) return unauthorized();
+    return statementResponse(tenantId, body.periodo);
+  });
+
+  health.registerData("ledger/accountant/statement", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = accountantTenant(body._authHeader, body.tenant_id);
+    if (!tenantId) return notFound();
+    return statementResponse(tenantId, body.periodo);
+  });
+
+  health.registerData("ledger/accountant/expenses/update", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = accountantTenant(body._authHeader, body.tenant_id);
+    if (!tenantId) return notFound();
+    try {
+      const id = IdSchema.parse(body).id;
+      const store = await storeFor(tenantId);
+      const expense = store.updateExpenseByAccountant(id, ExpenseInputSchema.parse(body));
+      return respond(200, successEnvelope({ expense }));
+    } catch (error: unknown) {
+      return failure(error);
+    }
+  });
+
+  health.registerData("ledger/accountant/categories/deducible", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = accountantTenant(body._authHeader, body.tenant_id);
+    if (!tenantId) return notFound();
+    try {
+      const input = CategoryDeducibleSchema.parse(body);
+      const store = await storeFor(tenantId);
+      store.setCategoryDeducible(input.categoria_id, input.deducible);
+      return respond(200, successEnvelope({ categories: store.listCategories() }));
+    } catch (error: unknown) {
+      return failure(error);
+    }
+  });
+
+  /** Estado de cuenta de un periodo. Los totales son solo de gastos aprobados. */
+  async function statementResponse(tenantId: string, periodo: unknown): Promise<LedgerResponse> {
+    const parsed = PeriodSchema.safeParse({ periodo });
+    const period = parsed.success ? parsePeriod(parsed.data.periodo) : null;
+    if (!period) {
+      return respond(
+        422,
+        errorEnvelope("VALIDATION_ERROR", "Periodo no válido. Usa AAAA-MM o AAAA-Tn (T1 a T4)"),
+      );
+    }
+    const store = await storeFor(tenantId);
+    const statement = buildStatement(period, store.listExpenses(), store.listCategories());
+    return respond(200, successEnvelope({ statement }));
+  }
+
   return {
     dispose: async () => {
       await Promise.all([...stores.values()].map((store) => store.dispose()));
