@@ -122,6 +122,7 @@ const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
   "ledger/accountant/expenses/update",
   "ledger/accountant/categories/deducible",
   "ledger/accountant/statement",
+  "ledger/accountant/expenses/annul",
 ]);
 
 // ─── Permisos por endpoint ──────────────────────────────────────────────────

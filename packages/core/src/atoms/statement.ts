@@ -82,6 +82,8 @@ export interface Statement {
     sin_soporte_cents: number;
   };
   pendientes: { cantidad: number; total_cents: number };
+  /** Gastos anulados del periodo. No suman en los totales; se muestran para transparencia. */
+  anulados: { cantidad: number; total_cents: number };
 }
 
 /**
@@ -96,6 +98,7 @@ export function buildStatement(
   const inPeriod = expenses.filter((e) => e.fecha >= period.desde && e.fecha <= period.hasta);
   const approved = inPeriod.filter((e) => e.estado === "APROBADO");
   const pending = inPeriod.filter((e) => e.estado === "PENDIENTE");
+  const annulled = inPeriod.filter((e) => e.estado === "ANULADO");
   const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   const porCategoria = new Map<number, number>();
@@ -143,6 +146,10 @@ export function buildStatement(
         .sort((a, b) => a.tasa - b.tasa),
       deducible_cents: deducible,
       sin_soporte_cents: sinSoporte,
+    },
+    anulados: {
+      cantidad: annulled.length,
+      total_cents: annulled.reduce((sum, e) => sum + e.importe_cents, 0),
     },
     pendientes: {
       cantidad: pending.length,
