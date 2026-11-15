@@ -448,6 +448,66 @@ export class TenantRegistryService {
   /**
    * Store the bcrypt hash of an API key for a tenant.
    */
+  /** Credenciales de acceso por contraseña de un tenant. null si el tenant no existe. */
+  getCredentials(tenantId: string): {
+    tenant_id: string;
+    profile: string;
+    status: string;
+    api_key_role: string;
+    password_hash: string | null;
+    must_change_password: boolean;
+  } | null {
+    if (!this.db) {
+      throw new Error(
+        "TenantRegistryService not initialized — call initialize() first",
+      );
+    }
+    const row = this.db
+      .prepare(
+        `SELECT tenant_id, profile, status, api_key_role, password_hash, must_change_password
+         FROM platform_tenants WHERE tenant_id = ?`,
+      )
+      .get(tenantId) as
+      | {
+          tenant_id: string;
+          profile: string;
+          status: string;
+          api_key_role: string;
+          password_hash: string | null;
+          must_change_password: number;
+        }
+      | undefined;
+    if (!row) return null;
+    return { ...row, must_change_password: row.must_change_password === 1 };
+  }
+
+  /** Guarda el hash de la contraseña de un tenant y si debe cambiarla al entrar. */
+  setPasswordCredentials(
+    tenantId: string,
+    passwordHash: string,
+    mustChange: boolean,
+    role: "viewer" | "operator" | "tenant_owner" = "operator",
+  ): void {
+    if (!this.db) {
+      throw new Error(
+        "TenantRegistryService not initialized — call initialize() first",
+      );
+    }
+    this.db
+      .prepare(
+        `UPDATE platform_tenants
+         SET password_hash = ?, must_change_password = ?, api_key_role = ?, updated_at = ?
+         WHERE tenant_id = ?`,
+      )
+      .run(
+        passwordHash,
+        mustChange ? 1 : 0,
+        role,
+        new Date().toISOString(),
+        tenantId,
+      );
+  }
+
   setApiKeyHash(
     tenantId: string,
     hash: string,

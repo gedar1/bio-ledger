@@ -53,6 +53,8 @@ function migratePlatformTenantsProfiles(
           api_key_hash  TEXT,
           api_key_role  TEXT NOT NULL DEFAULT 'viewer' CHECK(api_key_role IN ('viewer', 'operator', 'admin')),
           owner_id      TEXT,
+          password_hash TEXT,
+          must_change_password INTEGER NOT NULL DEFAULT 0,
           created_at    TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
           last_activity TEXT
@@ -60,8 +62,8 @@ function migratePlatformTenantsProfiles(
       `);
       db.exec(`
         INSERT INTO platform_tenants_new
-          (tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, created_at, updated_at, last_activity)
-        SELECT tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, created_at, updated_at, last_activity
+          (tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, password_hash, must_change_password, created_at, updated_at, last_activity)
+        SELECT tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, password_hash, must_change_password, created_at, updated_at, last_activity
         FROM platform_tenants
       `);
       db.exec("DROP TABLE platform_tenants");
@@ -128,6 +130,24 @@ export function initializePlatformSchema(
       `ALTER TABLE platform_tenants ADD COLUMN api_key_role TEXT NOT NULL DEFAULT 'viewer' CHECK(api_key_role IN ('viewer', 'operator', 'admin'))`,
     );
     log.info("Migration: added api_key_role column to platform_tenants");
+  } catch {
+    // Column already exists — safe to ignore
+  }
+
+  // Contraseña del cliente. must_change_password = 1 obliga a cambiarla en el siguiente inicio de sesión.
+  try {
+    db.exec(`ALTER TABLE platform_tenants ADD COLUMN password_hash TEXT`);
+    log.info("Migration: added password_hash column to platform_tenants");
+  } catch {
+    // Column already exists — safe to ignore
+  }
+  try {
+    db.exec(
+      `ALTER TABLE platform_tenants ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
+    );
+    log.info(
+      "Migration: added must_change_password column to platform_tenants",
+    );
   } catch {
     // Column already exists — safe to ignore
   }

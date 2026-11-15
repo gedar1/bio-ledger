@@ -7,6 +7,7 @@ import {
   isApiSecretRequest,
   type TokenDecision,
 } from "./apiAuth.js";
+import jwt from "jsonwebtoken";
 import { validatePlatformToken } from "./platformAuth.js";
 import { resolveRequestAuth } from "./tenantAuth.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
@@ -114,6 +115,7 @@ export function resolvePlatformAccess(
 const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
   "chat",
   "accountant/tenants",
+  "accountant/tenants/reset-password",
 ]);
 
 // ─── Permisos por endpoint ──────────────────────────────────────────────────
@@ -143,6 +145,7 @@ const ENDPOINT_MIN_ROLE: Readonly<Record<string, AccessRole>> = {
   websocket: "viewer",
   role: "viewer",
   "tenant/auth/me": "viewer",
+  "tenant/auth/change-password": "viewer",
 
   // Operación diaria del tenant
   chat: "operator",
@@ -184,6 +187,17 @@ function isRoleAllowed(endpoint: string, role: AccessRole): boolean {
  * - JWT de tenant: allow solo si su rol alcanza el endpoint; forbidden si no.
  * - Token no reconocido: invalid (401).
  */
+/** true si el token de cliente lleva la marca de cambio de contraseña obligatorio. */
+function requiresPasswordChange(authHeader: string): boolean {
+  const token = authHeader.split(" ")[1];
+  const payload = token ? jwt.decode(token) : null;
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    (payload as Record<string, unknown>).must_change_password === true
+  );
+}
+
 export function buildTokenVerifier(
   getTenantAuthService: () => TenantAuthService | undefined,
 ): (authHeader: string, path: string) => TokenDecision {
@@ -206,6 +220,13 @@ export function buildTokenVerifier(
     // Un rol heredado o desconocido no está en ROLE_LEVEL y queda fuera (fail-closed)
     if (!(ctx.role in ROLE_LEVEL)) return "forbidden";
 
+    // Con contraseña temporal, el cliente solo puede cambiarla hasta que lo haga.
+    if (
+      requiresPasswordChange(authHeader) &&
+      endpoint !== "tenant/auth/change-password"
+    ) {
+      return "password_change_required";
+    }
     return isRoleAllowed(endpoint, ctx.role as AccessRole)
       ? "allow"
       : "forbidden";

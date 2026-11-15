@@ -20,6 +20,7 @@ import {
   setupAccountantAuthRoutes,
   setupAccountantTenantRoutes,
 } from "./routes/AccountantAuthRoutes.js";
+import { setupTenantPasswordRoutes } from "./routes/TenantPasswordRoutes.js";
 
 import { setupDashboardRoutes } from "./routes/DashboardRoutes.js";
 import { setupSchedulerRoutes } from "./routes/SchedulerRoutes.js";
@@ -135,6 +136,7 @@ const ROUTE_REGISTRATIONS: RouteRegistration[] = [
     setup: (s, d) => {
       // Solo se registra cuando el auth de tenant está disponible.
       if (d.tenantAuthService && d.loginRateLimiter) {
+        setupTenantPasswordRoutes(s, d.tenantAuthService, d.loginRateLimiter);
         setupTenantAuthRoutes(
           s,
           d.tenantAuthService,

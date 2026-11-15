@@ -2,14 +2,13 @@ import { z } from "zod";
 import { createLogger } from "../../config/logger.js";
 import type { HealthServer } from "../HealthServer.js";
 import type { LoginRateLimiter } from "../middleware/loginRateLimiter.js";
-
-import { successEnvelope, errorEnvelope } from "../utils/apiEnvelope.js";
 import { AccountantAuthService } from "../services/AccountantAuthService.js";
 import {
   CreateTenantSchema,
   type TenantRegistryService,
 } from "../services/TenantRegistryService.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
+import { successEnvelope, errorEnvelope } from "../utils/apiEnvelope.js";
 
 const log = createLogger("AccountantAuthRoutes");
 
@@ -24,8 +23,18 @@ interface AccountantResponse {
   body: unknown;
 }
 
+function respond(statusCode: number, body: unknown): AccountantResponse {
+  return { _statusCode: statusCode, body };
+}
+
+/** Claims del token de contador desde el header Authorization, o null. */
+function accountantClaims(header: unknown) {
+  if (typeof header !== "string" || !header.startsWith("Bearer ")) return null;
+  return AccountantAuthService.verifyToken(header.slice(7));
+}
+
 /**
- * Registra el login del contador.
+ * Login del contador.
  *
  *   POST /api/accountant/auth/login — usuario y contraseña; devuelve un JWT de 8 horas.
  *
@@ -87,11 +96,13 @@ export function setupAccountantAuthRoutes(
 }
 
 /**
- * Alta de cliente por el contador.
+ * Alta y restablecimiento de clientes por el contador.
  *
- *   POST /api/accountant/tenants — crea el cliente y devuelve su clave de acceso una sola vez.
+ *   POST /api/accountant/tenants                     — crea el cliente con contraseña temporal.
+ *   POST /api/accountant/tenants/reset-password      — genera una contraseña temporal nueva.
  *
- * El dueño (owner_id) sale del token de contador. El body no puede elegirlo.
+ * El dueño sale del token. Las contraseñas temporales se devuelven una sola vez y
+ * obligan al cliente a cambiarlas en su siguiente inicio de sesión.
  */
 export function setupAccountantTenantRoutes(
   health: HealthServer,
@@ -100,9 +111,7 @@ export function setupAccountantTenantRoutes(
 ): void {
   health.registerData("accountant/tenants", async (params?: unknown) => {
     const body = (params ?? {}) as Record<string, unknown>;
-    const header = body._authHeader as string | undefined;
-    const token = header?.startsWith("Bearer ") ? header.slice(7) : undefined;
-    const claims = token ? AccountantAuthService.verifyToken(token) : null;
+    const claims = accountantClaims(body._authHeader);
     if (!claims) {
       return respond(
         401,
@@ -141,9 +150,9 @@ export function setupAccountantTenantRoutes(
       ...parsed.data,
       owner_id: String(claims.account_id),
     });
-    // El cliente registra sus gastos, así que su clave tiene rol operator (no tenant_owner).
-    const { raw, hash } = await tenantAuthService.generateApiKey();
-    registry.setApiKeyHash(record.tenant_id, hash, "operator");
+    const tempPassword = await tenantAuthService.resetTempPassword(
+      record.tenant_id,
+    );
 
     log.info({ tenantId: record.tenant_id }, "Cliente creado por el contador");
     return respond(
@@ -152,12 +161,56 @@ export function setupAccountantTenantRoutes(
         tenant_id: record.tenant_id,
         display_name: record.display_name,
         owner_id: record.owner_id,
-        api_key: raw,
+        temp_password: tempPassword,
+        must_change_password: true,
       }),
     );
   });
-}
 
-function respond(statusCode: number, body: unknown): AccountantResponse {
-  return { _statusCode: statusCode, body };
+  health.registerData(
+    "accountant/tenants/reset-password",
+    async (params?: unknown) => {
+      const body = (params ?? {}) as Record<string, unknown>;
+      const claims = accountantClaims(body._authHeader);
+      if (!claims) {
+        return respond(
+          401,
+          errorEnvelope("AUTH_INVALID_TOKEN", "Token de contador no válido"),
+        );
+      }
+
+      const tenantId = typeof body.tenant_id === "string" ? body.tenant_id : "";
+      // Mismo mensaje para "no existe" y "no es tuyo", para no revelar qué clientes hay.
+      if (
+        !tenantId ||
+        !tenantAuthService.accountOwnsTenant(claims.account_id, tenantId)
+      ) {
+        return respond(
+          404,
+          errorEnvelope("TENANT_NOT_FOUND", "Cliente no encontrado"),
+        );
+      }
+
+      const tempPassword = await tenantAuthService.resetTempPassword(tenantId);
+      if (!tempPassword) {
+        return respond(
+          404,
+          errorEnvelope("TENANT_NOT_FOUND", "Cliente no encontrado"),
+        );
+      }
+
+      log.info(
+        { tenantId },
+        "Contraseña temporal restablecida por el contador",
+      );
+      return respond(
+        200,
+        successEnvelope({
+          tenant_id: tenantId,
+          temp_password: tempPassword,
+          must_change_password: true,
+        }),
+      );
+    },
+  );
 }
