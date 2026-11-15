@@ -1,3 +1,6 @@
+// Debe ir primero: los imports de ESM se evalúan antes que el resto del archivo, y
+// apiAuth/tenantAuth leen API_SECRET al cargarse.
+import "dotenv/config";
 import { getDefaultProfile } from "../config/profileRegistry.js";
 import {
   initTelemetry,

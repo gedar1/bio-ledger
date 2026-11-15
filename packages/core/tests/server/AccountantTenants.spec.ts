@@ -53,7 +53,7 @@ describe("POST accountant/tenants", () => {
     vi.unstubAllEnvs();
   });
 
-  it("crea el cliente con el dueño del token y devuelve la clave una vez", async () => {
+  it("crea el cliente con el dueño del token y devuelve una contraseña temporal", async () => {
     const res = await handler({
       _authHeader: `Bearer ${token}`,
       tenant_id: "cliente-uno",
@@ -63,7 +63,8 @@ describe("POST accountant/tenants", () => {
 
     expect(res._statusCode).toBe(201);
     expect(res.body.data.owner_id).toBe(String(accountId));
-    expect(typeof res.body.data.api_key).toBe("string");
+    expect(typeof res.body.data.temp_password).toBe("string");
+    expect(res.body.data.api_key).toBeUndefined();
     expect(registry.getById("cliente-uno")?.owner_id).toBe(String(accountId));
   });
 
