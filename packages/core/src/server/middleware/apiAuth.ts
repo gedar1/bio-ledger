@@ -45,7 +45,11 @@ export function isApiSecretRequest(authHeader: string | undefined): boolean {
  * @returns null si autenticado (o auth deshabilitada), o un objeto de error si no autorizado
  */
 /** Resultado del verificador de JWT: permitido, token con rol insuficiente o no reconocido */
-export type TokenDecision = "allow" | "forbidden" | "invalid";
+export type TokenDecision =
+  | "allow"
+  | "forbidden"
+  | "password_change_required"
+  | "invalid";
 
 export function checkAuth(
   req: IncomingMessage,
@@ -72,7 +76,9 @@ export function checkAuth(
     req.method === "POST" &&
     (pathOnly === "/api/tenant/auth/login" ||
       pathOnly === "/api/tenant/auth/logout" ||
-      pathOnly === "/api/platform/auth/login")
+      pathOnly === "/api/platform/auth/login" ||
+      pathOnly === "/api/accountant/auth/login" ||
+      pathOnly === "/api/tenant/auth/password-login")
   ) {
     return null;
   }
@@ -97,6 +103,12 @@ export function checkAuth(
   if (authHeader && verifyToken) {
     const decision = verifyToken(authHeader, url);
     if (decision === "allow") return null;
+    if (decision === "password_change_required") {
+      return {
+        error: "Debes cambiar tu contraseña antes de usar este endpoint",
+        status: 403,
+      };
+    }
     if (decision === "forbidden") {
       log.warn(
         { url, method: req.method },

@@ -4,6 +4,11 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { createLogger } from "../../config/logger.js";
 import type { TenantRegistryService } from "./TenantRegistryService.js";
+import {
+  generateTempPassword,
+  hashPassword,
+  verifyPassword,
+} from "./passwordHash.js";
 
 const log = createLogger("TenantAuthService");
 
@@ -265,6 +270,105 @@ export class TenantAuthService {
    * Regenerate API key for a tenant.
    * Generates a new key, hashes it, updates the registry, and returns the new raw key.
    */
+  /**
+   * JWT de tenant con los mismos claims que el login por clave. Con una contraseña
+   * temporal, el token lleva must_change_password para limitar lo que puede hacer.
+   */
+  issueTenantToken(
+    tenantId: string,
+    profile: string,
+    role: TenantRole,
+    mustChangePassword = false,
+  ): { token: string; expires_in: number } {
+    const payload: Record<string, unknown> = {
+      tenant_id: tenantId,
+      role,
+      profile,
+    };
+    if (mustChangePassword) payload.must_change_password = true;
+    const token = jwt.sign(payload, this.deriveSigningSecret(tenantId), {
+      algorithm: "HS256",
+      expiresIn: JWT_EXPIRATION_SECONDS,
+    });
+    return { token, expires_in: JWT_EXPIRATION_SECONDS };
+  }
+
+  /** Login del cliente con usuario (tenant_id) y contraseña. */
+  async passwordLogin(
+    tenantId: string,
+    password: string,
+  ): Promise<
+    | {
+        token: string;
+        tenant_id: string;
+        profile: string;
+        role: TenantRole;
+        must_change_password: boolean;
+        expires_in: number;
+      }
+    | { error: string; status: 401 | 403 }
+  > {
+    const creds = this.registry.getCredentials(tenantId);
+    if (!creds || !creds.password_hash) {
+      return { error: "Usuario o contraseña incorrectos", status: 401 };
+    }
+    const ok = await verifyPassword(password, creds.password_hash);
+    if (!ok) {
+      return { error: "Usuario o contraseña incorrectos", status: 401 };
+    }
+    if (creds.status !== "active") {
+      return { error: "Tenant account is suspended", status: 403 };
+    }
+    const role = TenantRoleSchema.parse(creds.api_key_role);
+    const issued = this.issueTenantToken(
+      creds.tenant_id,
+      creds.profile,
+      role,
+      creds.must_change_password,
+    );
+    return {
+      ...issued,
+      tenant_id: creds.tenant_id,
+      profile: creds.profile,
+      role,
+      must_change_password: creds.must_change_password,
+    };
+  }
+
+  /** El cliente fija su propia contraseña. Devuelve un token sin la marca de cambio obligatorio. */
+  async setOwnPassword(
+    tenantId: string,
+    newPassword: string,
+  ): Promise<{ token: string; expires_in: number } | null> {
+    const creds = this.registry.getCredentials(tenantId);
+    if (!creds) return null;
+    const hash = await hashPassword(newPassword);
+    this.registry.setPasswordCredentials(tenantId, hash, false);
+    const role = TenantRoleSchema.parse(creds.api_key_role);
+    return this.issueTenantToken(tenantId, creds.profile, role, false);
+  }
+
+  /**
+   * Genera una contraseña temporal para un tenant y marca el cambio obligatorio.
+   * Devuelve la contraseña en claro una sola vez. null si el tenant no existe.
+   */
+  async resetTempPassword(tenantId: string): Promise<string | null> {
+    if (!this.registry.exists(tenantId)) return null;
+    const temp = generateTempPassword();
+    this.registry.setPasswordCredentials(
+      tenantId,
+      await hashPassword(temp),
+      true,
+    );
+    return temp;
+  }
+
+  /** true si el tenant existe y su dueño (owner_id) es la cuenta indicada. */
+  accountOwnsTenant(accountId: number, tenantId: string): boolean {
+    const tenant = this.registry.getById(tenantId);
+    return tenant !== null && tenant.owner_id === String(accountId);
+  }
+
   async regenerateApiKey(
     tenantId: string,
     maxRole: TenantRole,

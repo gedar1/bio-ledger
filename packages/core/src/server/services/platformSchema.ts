@@ -52,6 +52,9 @@ function migratePlatformTenantsProfiles(
           token_limit   INTEGER NOT NULL DEFAULT 0,
           api_key_hash  TEXT,
           api_key_role  TEXT NOT NULL DEFAULT 'viewer' CHECK(api_key_role IN ('viewer', 'operator', 'admin')),
+          owner_id      TEXT,
+          password_hash TEXT,
+          must_change_password INTEGER NOT NULL DEFAULT 0,
           created_at    TEXT NOT NULL DEFAULT (datetime('now')),
           updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
           last_activity TEXT
@@ -59,8 +62,8 @@ function migratePlatformTenantsProfiles(
       `);
       db.exec(`
         INSERT INTO platform_tenants_new
-          (tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, created_at, updated_at, last_activity)
-        SELECT tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, created_at, updated_at, last_activity
+          (tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, password_hash, must_change_password, created_at, updated_at, last_activity)
+        SELECT tenant_id, display_name, profile, status, token_limit, api_key_hash, api_key_role, owner_id, password_hash, must_change_password, created_at, updated_at, last_activity
         FROM platform_tenants
       `);
       db.exec("DROP TABLE platform_tenants");
@@ -131,7 +134,43 @@ export function initializePlatformSchema(
     // Column already exists — safe to ignore
   }
 
+  // Contraseña del cliente. must_change_password = 1 obliga a cambiarla en el siguiente inicio de sesión.
+  try {
+    db.exec(`ALTER TABLE platform_tenants ADD COLUMN password_hash TEXT`);
+    log.info("Migration: added password_hash column to platform_tenants");
+  } catch {
+    // Column already exists — safe to ignore
+  }
+  try {
+    db.exec(
+      `ALTER TABLE platform_tenants ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0`,
+    );
+    log.info(
+      "Migration: added must_change_password column to platform_tenants",
+    );
+  } catch {
+    // Column already exists — safe to ignore
+  }
+
+  // Cuenta del contador dueño del tenant. Nullable: los tenants existentes no tienen dueño asignado.
+  try {
+    db.exec(`ALTER TABLE platform_tenants ADD COLUMN owner_id TEXT`);
+    log.info("Migration: added owner_id column to platform_tenants");
+  } catch {
+    // Column already exists — safe to ignore
+  }
+
   migratePlatformTenantsProfiles(db);
+
+  // ─── Cuenta del contador (un solo registro por despliegue) ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS platform_accounts (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      username      TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 
   // ─── Usage Metrics (append-only event log) ──────────────────────────────────
   db.exec(`
