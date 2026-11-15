@@ -116,6 +116,9 @@ const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
   "chat",
   "accountant/tenants",
   "accountant/tenants/reset-password",
+  "ledger/accountant/expenses/list",
+  "ledger/accountant/expenses/create",
+  "ledger/accountant/expenses/decide",
 ]);
 
 // ─── Permisos por endpoint ──────────────────────────────────────────────────
@@ -146,6 +149,10 @@ const ENDPOINT_MIN_ROLE: Readonly<Record<string, AccessRole>> = {
   role: "viewer",
   "tenant/auth/me": "viewer",
   "tenant/auth/change-password": "viewer",
+  "ledger/categories/list": "viewer",
+  "ledger/expenses/list": "viewer",
+  "ledger/expenses/create": "operator",
+  "ledger/expenses/update": "operator",
 
   // Operación diaria del tenant
   chat: "operator",

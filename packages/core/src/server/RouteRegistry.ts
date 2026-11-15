@@ -21,6 +21,8 @@ import {
   setupAccountantTenantRoutes,
 } from "./routes/AccountantAuthRoutes.js";
 import { setupTenantPasswordRoutes } from "./routes/TenantPasswordRoutes.js";
+import { setupLedgerRoutes } from "./routes/LedgerRoutes.js";
+import { resolveDataPath } from "../atoms/paths.js";
 
 import { setupDashboardRoutes } from "./routes/DashboardRoutes.js";
 import { setupSchedulerRoutes } from "./routes/SchedulerRoutes.js";
@@ -137,6 +139,11 @@ const ROUTE_REGISTRATIONS: RouteRegistration[] = [
       // Solo se registra cuando el auth de tenant está disponible.
       if (d.tenantAuthService && d.loginRateLimiter) {
         setupTenantPasswordRoutes(s, d.tenantAuthService, d.loginRateLimiter);
+        setupLedgerRoutes(
+          s,
+          d.tenantAuthService,
+          resolveDataPath(process.env.DATABASE_DIR || "./data"),
+        );
         setupTenantAuthRoutes(
           s,
           d.tenantAuthService,
