@@ -34,3 +34,6 @@ Thumbs.db
 
 # Grafo de conocimiento generado por graphify
 graphify-out/
+
+# Entorno de Postman con contraseñas y tokens reales
+docs/postman/*.local.json

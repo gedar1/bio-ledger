@@ -4,6 +4,7 @@ import { createLogger } from "../config/logger.js";
 import type { IMolecule } from "./interfaces/IMolecule.js";
 import {
   BTW_RATES,
+  canAnnul,
   canClientModify,
   canDecide,
   validateRejectionNote,
@@ -43,16 +44,29 @@ export interface Expense {
   revisado_por: string | null;
   revisado_en: string | null;
   referencia_archivo: string | null;
+  /** Si el gasto tiene factura o recibo que lo respalde. */
+  con_soporte: boolean;
+  nota_anulacion: string | null;
+  anulado_por: string | null;
+  anulado_en: string | null;
 }
 
-/** Datos de un gasto que escribe quien lo registra. Importe en céntimos, sin decimales. */
+/**
+ * Datos de un gasto. El importe incluye el BTW, como aparece en el recibo, y va en céntimos.
+ * `con_soporte` no se marca salvo que el cliente lo indique.
+ */
 export const ExpenseInputSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "fecha en formato AAAA-MM-DD"),
   importe_cents: z.number().int().positive(),
-  tasa_btw: z.union([z.literal(BTW_RATES[0]), z.literal(BTW_RATES[1]), z.literal(BTW_RATES[2])]),
+  tasa_btw: z.union([
+    z.literal(BTW_RATES[0]),
+    z.literal(BTW_RATES[1]),
+    z.literal(BTW_RATES[2]),
+  ]),
   concepto: z.string().trim().min(1).max(200),
   categoria_id: z.number().int().positive(),
   referencia_archivo: z.string().max(500).nullable().optional(),
+  con_soporte: z.boolean().optional(),
 });
 export type ExpenseInput = z.infer<typeof ExpenseInputSchema>;
 
@@ -65,6 +79,41 @@ export class ExpenseRuleError extends Error {
     super(message);
     this.name = "ExpenseRuleError";
   }
+}
+
+/** Definición completa de la tabla de gastos. Usada al crear y al reconstruir la tabla. */
+const GASTOS_DDL = `
+  CREATE TABLE gastos (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha              TEXT    NOT NULL,
+    importe_cents      INTEGER NOT NULL CHECK(importe_cents > 0),
+    tasa_btw           INTEGER NOT NULL CHECK(tasa_btw IN (0, 9, 21)),
+    concepto           TEXT    NOT NULL,
+    categoria_id       INTEGER NOT NULL REFERENCES categorias(id),
+    estado             TEXT    NOT NULL DEFAULT 'PENDIENTE'
+                       CHECK(estado IN ('PENDIENTE', 'APROBADO', 'RECHAZADO', 'ANULADO')),
+    nota_rechazo       TEXT    DEFAULT NULL,
+    creado_por         TEXT    NOT NULL CHECK(creado_por IN ('ACCOUNTANT', 'CLIENT')),
+    creado_en          TEXT    NOT NULL DEFAULT (datetime('now')),
+    revisado_por       TEXT    DEFAULT NULL,
+    revisado_en        TEXT    DEFAULT NULL,
+    referencia_archivo TEXT    DEFAULT NULL,
+    con_soporte        INTEGER NOT NULL DEFAULT 0 CHECK(con_soporte IN (0, 1)),
+    nota_anulacion     TEXT    DEFAULT NULL,
+    anulado_por        TEXT    DEFAULT NULL,
+    anulado_en         TEXT    DEFAULT NULL
+  )
+`;
+
+const GASTOS_COLUMNS =
+  "id, fecha, importe_cents, tasa_btw, concepto, categoria_id, estado, nota_rechazo, creado_por, creado_en, revisado_por, revisado_en, referencia_archivo, con_soporte";
+
+interface ExpenseRow extends Omit<Expense, "con_soporte"> {
+  con_soporte: number;
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return { ...row, con_soporte: row.con_soporte === 1 };
 }
 
 /**
@@ -99,30 +148,64 @@ export class ExpenseMolecule implements IMolecule {
         deducible  INTEGER DEFAULT NULL CHECK(deducible IN (0, 1) OR deducible IS NULL),
         creado_en  TEXT    NOT NULL DEFAULT (datetime('now'))
       );
-      CREATE TABLE IF NOT EXISTS gastos (
-        id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-        fecha              TEXT    NOT NULL,
-        importe_cents      INTEGER NOT NULL CHECK(importe_cents > 0),
-        tasa_btw           INTEGER NOT NULL CHECK(tasa_btw IN (0, 9, 21)),
-        concepto           TEXT    NOT NULL,
-        categoria_id       INTEGER NOT NULL REFERENCES categorias(id),
-        estado             TEXT    NOT NULL DEFAULT 'PENDIENTE'
-                           CHECK(estado IN ('PENDIENTE', 'APROBADO', 'RECHAZADO')),
-        nota_rechazo       TEXT    DEFAULT NULL,
-        creado_por         TEXT    NOT NULL CHECK(creado_por IN ('ACCOUNTANT', 'CLIENT')),
-        creado_en          TEXT    NOT NULL DEFAULT (datetime('now')),
-        revisado_por       TEXT    DEFAULT NULL,
-        revisado_en        TEXT    DEFAULT NULL,
-        referencia_archivo TEXT    DEFAULT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_gastos_estado ON gastos(estado);
     `);
 
-    const count = this.db.prepare("SELECT COUNT(*) AS n FROM categorias").get() as { n: number };
+    const tableSql = this.db
+      .prepare(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'gastos'",
+      )
+      .get() as { sql: string } | undefined;
+
+    if (!tableSql) {
+      this.db.exec(GASTOS_DDL);
+    } else {
+      this.migrateGastos(tableSql.sql);
+    }
+    this.db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_gastos_estado ON gastos(estado)",
+    );
+
+    const count = this.db
+      .prepare("SELECT COUNT(*) AS n FROM categorias")
+      .get() as { n: number };
     if (count.n === 0) {
-      const insert = this.db.prepare("INSERT INTO categorias (nombre) VALUES (?)");
+      const insert = this.db.prepare(
+        "INSERT INTO categorias (nombre) VALUES (?)",
+      );
       for (const nombre of DEFAULT_CATEGORY_NAMES) insert.run(nombre);
     }
+  }
+
+  /**
+   * Bases creadas con una versión anterior. SQLite no cambia un CHECK con ALTER, así que
+   * la tabla se reconstruye y se copian las filas. Sin soporte por defecto: hasta confirmarlo, no es deducible.
+   */
+  private migrateGastos(currentSql: string): void {
+    const columns = this.db
+      .prepare("PRAGMA table_info(gastos)")
+      .all() as Array<{ name: string }>;
+    const hasExpanded =
+      currentSql.includes("'ANULADO'") &&
+      columns.some((c) => c.name === "anulado_en");
+    if (hasExpanded) return;
+
+    this.db.transaction(() => {
+      this.db.exec("ALTER TABLE gastos RENAME TO gastos_previo");
+      this.db.exec(GASTOS_DDL);
+      const previous = this.db
+        .prepare("PRAGMA table_info(gastos_previo)")
+        .all() as Array<{ name: string }>;
+      const hasSupport = previous.some((c) => c.name === "con_soporte");
+      this.db.exec(
+        `INSERT INTO gastos (${GASTOS_COLUMNS})
+         SELECT ${GASTOS_COLUMNS.split(", ")
+           .map((c) => (c === "con_soporte" && !hasSupport ? "0" : c))
+           .join(", ")}
+         FROM gastos_previo`,
+      );
+      this.db.exec("DROP TABLE gastos_previo");
+    })();
+    log.info("Migración: tabla gastos reconstruida con estado ANULADO");
   }
 
   listCategories(): Category[] {
@@ -147,15 +230,25 @@ export class ExpenseMolecule implements IMolecule {
   }
 
   listExpenses(estado?: ExpenseState): Expense[] {
-    const rows = estado
-      ? this.db.prepare("SELECT * FROM gastos WHERE estado = ? ORDER BY fecha DESC, id DESC").all(estado)
-      : this.db.prepare("SELECT * FROM gastos ORDER BY fecha DESC, id DESC").all();
-    return rows as Expense[];
+    const rows = (
+      estado
+        ? this.db
+            .prepare(
+              "SELECT * FROM gastos WHERE estado = ? ORDER BY fecha DESC, id DESC",
+            )
+            .all(estado)
+        : this.db
+            .prepare("SELECT * FROM gastos ORDER BY fecha DESC, id DESC")
+            .all()
+    ) as ExpenseRow[];
+    return rows.map(toExpense);
   }
 
   getExpense(id: number): Expense | null {
-    const row = this.db.prepare("SELECT * FROM gastos WHERE id = ?").get(id);
-    return (row as Expense | undefined) ?? null;
+    const row = this.db.prepare("SELECT * FROM gastos WHERE id = ?").get(id) as
+      | ExpenseRow
+      | undefined;
+    return row ? toExpense(row) : null;
   }
 
   /** Alta de un gasto. El creador lo marca el servidor, no el cuerpo de la petición. */
@@ -164,8 +257,8 @@ export class ExpenseMolecule implements IMolecule {
     this.assertCategoryExists(data.categoria_id);
     const info = this.db
       .prepare(
-        `INSERT INTO gastos (fecha, importe_cents, tasa_btw, concepto, categoria_id, creado_por, referencia_archivo)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO gastos (fecha, importe_cents, tasa_btw, concepto, categoria_id, creado_por, referencia_archivo, con_soporte)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         data.fecha,
@@ -175,23 +268,40 @@ export class ExpenseMolecule implements IMolecule {
         data.categoria_id,
         creator,
         data.referencia_archivo ?? null,
+        data.con_soporte ? 1 : 0,
       );
-    return this.getExpense(Number(info.lastInsertRowid)) as Expense;
+    return this.requireExpense(Number(info.lastInsertRowid));
   }
 
   /** Edición por el cliente. Solo gastos propios y pendientes. */
   updateExpenseByClient(id: number, input: ExpenseInput): Expense {
     const current = this.requireExpense(id);
     if (!canClientModify(current.estado, current.creado_por)) {
-      throw new ExpenseRuleError("NOT_ALLOWED", "Solo puedes editar tus gastos pendientes");
+      throw new ExpenseRuleError(
+        "NOT_ALLOWED",
+        "Solo puedes editar tus gastos pendientes",
+      );
     }
+    return this.writeExpenseFields(id, input);
+  }
+
+  /** Corrección por el contador antes de decidir: tasa, importe, categoría o soporte. */
+  updateExpenseByAccountant(id: number, input: ExpenseInput): Expense {
+    const current = this.requireExpense(id);
+    if (!canDecide(current.estado)) {
+      throw new ExpenseRuleError("NOT_ALLOWED", "Este gasto ya fue decidido");
+    }
+    return this.writeExpenseFields(id, input);
+  }
+
+  private writeExpenseFields(id: number, input: ExpenseInput): Expense {
     const data = ExpenseInputSchema.parse(input);
     this.assertCategoryExists(data.categoria_id);
     this.db
       .prepare(
         `UPDATE gastos SET fecha = ?, importe_cents = ?, tasa_btw = ?, concepto = ?,
-           categoria_id = ?, referencia_archivo = ?
-         WHERE id = ?`,
+           categoria_id = ?, referencia_archivo = ?, con_soporte = ?
+         WHERE id = ? AND estado = 'PENDIENTE'`,
       )
       .run(
         data.fecha,
@@ -200,6 +310,7 @@ export class ExpenseMolecule implements IMolecule {
         data.concepto,
         data.categoria_id,
         data.referencia_archivo ?? null,
+        data.con_soporte ? 1 : 0,
         id,
       );
     return this.requireExpense(id);
@@ -233,14 +344,45 @@ export class ExpenseMolecule implements IMolecule {
     return this.requireExpense(id);
   }
 
+  /**
+   * Anula un gasto aprobado. Exige nota. El gasto deja de sumar en el estado de cuenta,
+   * pero sigue visible con su motivo. Si hace falta, se registra de nuevo como gasto nuevo.
+   */
+  annulExpense(id: number, reviewer: string, note: string): Expense {
+    const current = this.requireExpense(id);
+    if (!canAnnul(current.estado)) {
+      throw new ExpenseRuleError(
+        "NOT_ALLOWED",
+        "Solo se pueden anular gastos aprobados",
+      );
+    }
+    const error = validateRejectionNote(note);
+    if (error)
+      throw new ExpenseRuleError(
+        "VALIDATION",
+        error.replace("rechazo", "anulación"),
+      );
+    this.db
+      .prepare(
+        `UPDATE gastos SET estado = 'ANULADO', nota_anulacion = ?, anulado_por = ?, anulado_en = datetime('now')
+         WHERE id = ? AND estado = 'APROBADO'`,
+      )
+      .run(note.trim(), reviewer, id);
+    return this.requireExpense(id);
+  }
+
   private requireExpense(id: number): Expense {
     const expense = this.getExpense(id);
-    if (!expense) throw new ExpenseRuleError("NOT_FOUND", "Gasto no encontrado");
+    if (!expense)
+      throw new ExpenseRuleError("NOT_FOUND", "Gasto no encontrado");
     return expense;
   }
 
   private assertCategoryExists(categoryId: number): void {
-    const row = this.db.prepare("SELECT 1 FROM categorias WHERE id = ?").get(categoryId);
-    if (!row) throw new ExpenseRuleError("VALIDATION", "Categoría no encontrada");
+    const row = this.db
+      .prepare("SELECT 1 FROM categorias WHERE id = ?")
+      .get(categoryId);
+    if (!row)
+      throw new ExpenseRuleError("VALIDATION", "Categoría no encontrada");
   }
 }
