@@ -4,6 +4,7 @@ import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-
 import { ClientsPage } from "./pages/accountant/ClientsPage";
 import { ReviewPage } from "./pages/accountant/ReviewPage";
 import { StatementPage } from "./pages/StatementPage";
+import { ChatPage } from "./pages/client/ChatPage";
 import { ExpensesPage } from "./pages/client/ExpensesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { clearSession, loadSession, type Session } from "./session";
@@ -47,6 +48,9 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
                   </NavLink>
                   <NavLink to="/cliente/estado" className={link}>
                     {t("nav.statement")}
+                  </NavLink>
+                  <NavLink to="/cliente/chat" className={link}>
+                    {t("nav.chat")}
                   </NavLink>
                 </>
               )}
@@ -110,6 +114,17 @@ function ClientStatementRoute({ session }: { session: Session | null }) {
   );
 }
 
+/** Chat del cliente con el asistente. */
+function ClientChatRoute({ session }: { session: Session | null }) {
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role !== "client") return <Navigate to="/contador/clientes" replace />;
+  return (
+    <Shell session={session}>
+      <ChatPage token={session.token} />
+    </Shell>
+  );
+}
+
 /** Revisión de un cliente de la cuenta del contador. */
 function AccountantReviewRoute({ session }: { session: Session | null }) {
   const { tenantId = "" } = useParams();
@@ -142,6 +157,7 @@ export default function App() {
       <Route path="/contador/clientes/:tenantId" element={<AccountantReviewRoute session={session} />} />
       <Route path="/cliente/gastos" element={<ClientRoute session={session} />} />
       <Route path="/cliente/estado" element={<ClientStatementRoute session={session} />} />
+      <Route path="/cliente/chat" element={<ClientChatRoute session={session} />} />
       <Route path="/contador/clientes/:tenantId/estado" element={<AccountantStatementRoute session={session} />} />
       <Route path="*" element={<Navigate to={session ? (session.role === "accountant" ? "/contador/clientes" : "/cliente/gastos") : "/login"} replace />} />
     </Routes>
