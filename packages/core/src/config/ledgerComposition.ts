@@ -27,9 +27,9 @@ const ESTADO_TEXTO: Record<(typeof ESTADOS)[number], string> = {
 const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 const formatCents = (cents: number): string => eur.format(cents / 100);
 
+// Sin regex: el proveedor del modelo no admite 'pattern'. El manejador valida el formato.
 const PERIODO = z
   .string()
-  .regex(/^(\d{4}-\d{2}|\d{4}-T[1-4])$/, "periodo: AAAA-MM o AAAA-Tn")
   .describe("Periodo: AAAA-MM para un mes o AAAA-T1 a AAAA-T4 para un trimestre");
 
 function moleculeFor(context: CellRuntimeContext, key: string): ExpenseMolecule {
