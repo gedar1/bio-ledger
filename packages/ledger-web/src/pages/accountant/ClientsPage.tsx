@@ -41,6 +41,18 @@ export function ClientsPage({ token }: { token: string }) {
     void load();
   }, [load]);
 
+  /** Genera una contraseña temporal nueva para un cliente de la cuenta. */
+  async function resetPassword(clientId: string) {
+    setError(null);
+    try {
+      const data = await apiPost<CreatedClient>("accountant/tenants/reset-password", { tenant_id: clientId }, token);
+      setCreated(data);
+      await load();
+    } catch {
+      setError(t("errors.generic"));
+    }
+  }
+
   async function create(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -108,6 +120,7 @@ export function ClientsPage({ token }: { token: string }) {
                 <th className="px-4 py-3 font-medium">{t("clients.clientId")}</th>
                 <th className="px-4 py-3 font-medium">{t("clients.displayName")}</th>
                 <th className="px-4 py-3 font-medium">{t("clients.active")}</th>
+                <th className="px-4 py-3 font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -121,6 +134,15 @@ export function ClientsPage({ token }: { token: string }) {
                   <td className="px-4 py-3">{c.display_name}</td>
                   <td className="px-4 py-3 text-steel">
                     {c.must_change_password ? t("clients.mustChange") : t("clients.active")}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => void resetPassword(c.tenant_id)}
+                      className="rounded-lg border border-hairline-strong px-3 py-1.5 text-xs font-medium text-slate hover:text-ink"
+                    >
+                      {t("clients.reset")}
+                    </button>
                   </td>
                 </tr>
               ))}

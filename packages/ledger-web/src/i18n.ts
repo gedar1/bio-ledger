@@ -34,6 +34,7 @@ const resources = {
         active: "Actief",
         empty: "Nog geen klanten.",
         duplicate: "Deze klant-ID bestaat al.",
+        reset: "Nieuw tijdelijk wachtwoord",
       },
       expenses: {
         title: "Uitgaven",
@@ -126,6 +127,7 @@ const resources = {
         active: "Activo",
         empty: "Aún no hay clientes.",
         duplicate: "Ese ID de cliente ya existe.",
+        reset: "Nueva contraseña temporal",
       },
       expenses: {
         title: "Gastos",
@@ -218,6 +220,7 @@ const resources = {
         active: "Active",
         empty: "No clients yet.",
         duplicate: "That client ID already exists.",
+        reset: "New temporary password",
       },
       expenses: {
         title: "Expenses",
