@@ -26,6 +26,7 @@ Una cadena es una secuencia de pasos declarada en datos. El motor sabe ejecutarl
 | `steps`       | Pasos en orden: `{ cell, tool, args }`. Cada `cell` debe estar en `allowedCells` del perfil.      |
 | `setup`       | Sentencias SQL que se ejecutan antes de los pasos, en la célula `memory`. Deben ser idempotentes. |
 | `done`        | Texto de respuesta cuando la cadena termina bien.                                                 |
+| `respond`     | Opcional. `"tool"`: la respuesta es el texto que devuelve la última herramienta, sin el modelo. `done` queda como respaldo si la herramienta no devuelve texto. |
 
 Validación: `config/chainSchema.ts` (zod) y `config/profileRegistry.ts`. Un perfil con ids de cadena repetidos, o con un paso en una célula no permitida, no arranca.
 
@@ -39,6 +40,7 @@ Argumentos de cada paso:
 Los extractores (`url`, `text`) están en el motor (`atoms/chainSpec.ts`). El perfil referencia su nombre, no su código.
 
 Ejemplo vigente en el perfil `domain`: la cadena `scrape-store`, con secuencia `scrape_url→db_insert`, guarda el contenido de una URL en `jev_chain_results`.
+En bio-ledger, los perfiles del chat son `ledger-cliente` (cadena `mis-gastos`, secuencia `list_my_expenses`) y `ledger-contador` (cadena `gastos-pendientes`, secuencia `list_pending_expenses`). Están en `config/ledgerProfiles.ts`, con `respond: "tool"`.
 
 ## Flujo en el chat
 
@@ -65,6 +67,26 @@ POST /api/chat → TenantManager.chat → UnifiedCortex.chat → runConversation
 ```
 
 `chatStream` pasa por la misma función, así que el gate aplica igual en streaming.
+
+## Criterios para que una ejecución sea candidata a gate
+
+Una ejecución puede resolverse sin LLM solo si cumple las cinco condiciones. Si falla una, va al modelo.
+
+1. **Tarea fija.** Siempre usa los mismos pasos y no requiere interpretar ni redactar. Una lista, un total o un estado de cuenta cumplen; una explicación no.
+2. **Secuencia declarada.** La secuencia de herramientas que propone Jev coincide, en el mismo orden, con los pasos de una cadena del perfil, con similitud ≥ 0.7.
+3. **Datos extraíbles.** Cada dato que la cadena necesita se obtiene del mensaje con un extractor del motor. Hoy existen `url` y `text`. `requires` admite como máximo un dato. Si el dato es una fecha o un periodo, no hay extractor y la cadena no puede ejecutarse sin modelo.
+4. **Células permitidas.** Cada paso pertenece a una célula de `allowedCells` del perfil.
+5. **Respuesta fija o de herramienta.** La respuesta sale de `done` o de `respond: "tool"`. Si hay que redactarla, no es candidata.
+
+Para validar un caso, revisa estas cinco condiciones en orden y anota cuál falla. Ejemplos del producto contable:
+
+| Pregunta | Resultado | Motivo |
+| --- | --- | --- |
+| "cuáles son mis gastos" | Gate | Cumple las cinco: cadena `mis-gastos`, sin datos, respuesta de herramienta. |
+| "gastos pendientes" (contador) | Gate | Cadena `gastos-pendientes`, sin datos, respuesta de herramienta. |
+| "cuánto gasté en marzo" | Modelo | Falla la 2 (no hay cadena con `get_my_statement → list_my_expenses`) y la 3 (no hay extractor de periodo). |
+
+Si una pregunta repetida no se resuelve sin modelo, no es un problema de repetición: el motor no guarda respuestas. Lo que decide es si la cadena existe y sus datos se extraen.
 
 ## Ejecución (`runChain`)
 
