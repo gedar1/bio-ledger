@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { ClientsPage } from "./pages/accountant/ClientsPage";
 import { ReviewPage } from "./pages/accountant/ReviewPage";
+import { StatementPage } from "./pages/StatementPage";
 import { ExpensesPage } from "./pages/client/ExpensesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { clearSession, loadSession, type Session } from "./session";
@@ -40,9 +41,14 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
                   {t("nav.clients")}
                 </NavLink>
               ) : (
-                <NavLink to="/cliente/gastos" className={link}>
-                  {t("nav.expenses")}
-                </NavLink>
+                <>
+                  <NavLink to="/cliente/gastos" className={link}>
+                    {t("nav.expenses")}
+                  </NavLink>
+                  <NavLink to="/cliente/estado" className={link}>
+                    {t("nav.statement")}
+                  </NavLink>
+                </>
               )}
             </nav>
           </div>
@@ -81,6 +87,29 @@ function AccountantRoute({ session }: { session: Session | null }) {
   );
 }
 
+/** Estado de cuenta de un cliente, visto por el contador. */
+function AccountantStatementRoute({ session }: { session: Session | null }) {
+  const { tenantId = "" } = useParams();
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role !== "accountant") return <Navigate to="/cliente/gastos" replace />;
+  return (
+    <Shell session={session}>
+      <StatementPage role="accountant" token={session.token} tenantId={tenantId} />
+    </Shell>
+  );
+}
+
+/** Estado de cuenta del propio cliente. */
+function ClientStatementRoute({ session }: { session: Session | null }) {
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role !== "client") return <Navigate to="/contador/clientes" replace />;
+  return (
+    <Shell session={session}>
+      <StatementPage role="client" token={session.token} />
+    </Shell>
+  );
+}
+
 /** Revisión de un cliente de la cuenta del contador. */
 function AccountantReviewRoute({ session }: { session: Session | null }) {
   const { tenantId = "" } = useParams();
@@ -112,6 +141,8 @@ export default function App() {
       <Route path="/contador/clientes" element={<AccountantRoute session={session} />} />
       <Route path="/contador/clientes/:tenantId" element={<AccountantReviewRoute session={session} />} />
       <Route path="/cliente/gastos" element={<ClientRoute session={session} />} />
+      <Route path="/cliente/estado" element={<ClientStatementRoute session={session} />} />
+      <Route path="/contador/clientes/:tenantId/estado" element={<AccountantStatementRoute session={session} />} />
       <Route path="*" element={<Navigate to={session ? (session.role === "accountant" ? "/contador/clientes" : "/cliente/gastos") : "/login"} replace />} />
     </Routes>
   );

@@ -259,9 +259,14 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
         <h2 className="font-serif text-3xl">
           {t("review.title")}: <span className="font-mono text-2xl">{tenantId}</span>
         </h2>
-        <Link to="/contador/clientes" className="text-sm text-steel hover:text-ink">
+        <div className="flex gap-6">
+          <Link to={`/contador/clientes/${tenantId}/estado`} className="text-sm text-primary hover:underline">
+            {t("nav.statement")}
+          </Link>
+          <Link to="/contador/clientes" className="text-sm text-steel hover:text-ink">
           {t("review.back")}
-        </Link>
+          </Link>
+        </div>
       </div>
 
       <form onSubmit={create} className="grid gap-4 rounded-lg border border-hairline-soft p-6 md:grid-cols-2">
