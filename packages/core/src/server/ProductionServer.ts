@@ -36,6 +36,7 @@ import {
   getSingleTenantId,
 } from "../config/deploymentMode.js";
 import { isAuthEnabled } from "./middleware/apiAuth.js";
+import { openApiProblem } from "../atoms/startupGuard.js";
 import { TenantRegistryService } from "./services/TenantRegistryService.js";
 import { UsageMetricsCollector } from "./services/UsageMetricsCollector.js";
 import { HealthStatusCalculator } from "./services/HealthStatusCalculator.js";
@@ -206,10 +207,14 @@ async function main() {
   // Se lee tenantAuthService al momento de la petición (puede ser undefined).
   health.setTokenVerifier(buildTokenVerifier(() => tenantAuthService));
 
-  if (getDeploymentMode() === "studio" && !isAuthEnabled()) {
-    log.warn(
-      "DEPLOYMENT_MODE=studio sin API_SECRET: la API está abierta sin autenticación. Define API_SECRET antes de exponer el servidor.",
-    );
+  const startupProblem = openApiProblem({
+    deploymentMode: getDeploymentMode(),
+    authEnabled: isAuthEnabled(),
+    allowOpenApi: process.env.ALLOW_OPEN_API === "true",
+  });
+  if (startupProblem) {
+    log.error(startupProblem);
+    process.exit(1);
   }
 
   if (platformRegistry) {
