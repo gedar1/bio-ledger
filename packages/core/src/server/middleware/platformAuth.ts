@@ -109,10 +109,11 @@ export function validatePlatformToken(
     // Validate payload structure with Zod
     const result = PlatformTokenPayloadSchema.safeParse(decoded);
     if (!result.success) {
-      log.warn(
-        { errors: result.error.issues },
-        "Token payload validation failed",
-      );
+      // Solo es un fallo real si el token se presenta como de plataforma. Los tokens de
+      // contador o de cliente llegan aquí en cada petición y no son una advertencia.
+      const looksLikePlatform = (decoded as { sub?: unknown }).sub === "platform-admin";
+      const logFn = looksLikePlatform ? log.warn.bind(log) : log.debug.bind(log);
+      logFn({ errors: result.error.issues }, "Token payload validation failed");
       return { error: "Invalid token payload structure", status: 401 };
     }
 
