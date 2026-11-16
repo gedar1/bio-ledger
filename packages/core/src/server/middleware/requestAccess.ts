@@ -10,6 +10,11 @@ import {
 import jwt from "jsonwebtoken";
 import { validatePlatformToken } from "./platformAuth.js";
 import { resolveRequestAuth } from "./tenantAuth.js";
+import { AccountantAuthService } from "../services/AccountantAuthService.js";
+import {
+  LEDGER_ACCOUNTANT_PROFILE,
+  LEDGER_CLIENT_PROFILE,
+} from "../../atoms/chatProfiles.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
 
 /**
@@ -210,6 +215,26 @@ function requiresPasswordChange(authHeader: string): boolean {
     payload !== null &&
     (payload as Record<string, unknown>).must_change_password === true
   );
+}
+
+/**
+ * Perfil de la conversación según quien escribe. El contador y el cliente tienen
+ * agentes, herramientas e historial distintos. undefined = sesión por defecto.
+ */
+export function chatProfileFor(
+  params: Record<string, unknown>,
+  tenantAuthService?: TenantAuthService,
+): string | undefined {
+  if (!isAuthEnabled()) return undefined;
+  const authHeader = params._authHeader;
+  if (typeof authHeader !== "string") return undefined;
+  if (authHeader.startsWith("Bearer ") && AccountantAuthService.verifyToken(authHeader.slice(7))) {
+    return LEDGER_ACCOUNTANT_PROFILE;
+  }
+  if (!tenantAuthService) return undefined;
+  const ctx = resolveRequestAuth(authHeader, tenantAuthService);
+  if (!("error" in ctx) && ctx.auth_type === "tenant_jwt") return LEDGER_CLIENT_PROFILE;
+  return undefined;
 }
 
 export function buildTokenVerifier(

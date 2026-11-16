@@ -13,6 +13,7 @@ import {
   getAvailableProfiles,
   getDefaultProfile,
 } from "../config/profileRegistry.js";
+import { sessionKey } from "../atoms/chatProfiles.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getModuleDir, resolveDataPath } from "../atoms/paths.js";
@@ -113,15 +114,17 @@ export class TenantManager {
    * @param tenantId - Identificador único del tenant
    * @param profileName - Perfil de dominio (default: env TENANT_PROFILE o el perfil editable)
    */
-  async getTenant(tenantId: string, profileName?: string): Promise<TenantInfo> {
-    const existing = this.tenants.get(tenantId);
+  async getTenant(tenantId: string, requestedProfile?: string): Promise<TenantInfo> {
+    const profileName = this.resolveKnownProfile(tenantId, requestedProfile);
+    const key = sessionKey(tenantId, profileName);
+    const existing = this.tenants.get(key);
     if (existing) {
       existing.lastActivity = Date.now();
 
       // If marked for reload (e.g. profile changed), recreate with new profile
       if (existing.needsReload) {
         log.info({ tenantId }, "Session marked for reload — recreating tenant");
-        this.tenants.delete(tenantId);
+        this.tenants.delete(key);
         // Recurse to create fresh session with the new profile
         return this.getTenant(tenantId, profileName ?? existing.profile);
       }
@@ -199,7 +202,7 @@ export class TenantManager {
       organism,
     };
 
-    this.tenants.set(tenantId, tenant);
+    this.tenants.set(key, tenant);
     log.info(
       { tenantId, profile, totalTenants: this.tenants.size },
       "Tenant listo",
@@ -255,10 +258,10 @@ export class TenantManager {
   /**
    * Envía un mensaje al Cortex de un tenant.
    */
-  async chat(tenantId: string, message: string): Promise<string> {
-    const release = await this.acquireTenant(tenantId);
+  async chat(tenantId: string, message: string, profile?: string): Promise<string> {
+    const release = await this.acquireTenant(sessionKey(tenantId, profile));
     try {
-      const tenant = await this.getTenant(tenantId);
+      const tenant = await this.getTenant(tenantId, profile);
       tenant.lastActivity = Date.now();
       const beforeSize = tenant.cortex.getHistory().length;
       await tenant.cortex.chat(message);
@@ -290,6 +293,15 @@ export class TenantManager {
     } finally {
       release();
     }
+  }
+
+  /** Perfil pedido si está registrado; si no, la sesión por defecto del tenant. */
+  private resolveKnownProfile(tenantId: string, requested?: string): string | undefined {
+    if (!requested) return undefined;
+    const known = getAvailableProfiles()[requested] ?? tenantProfiles.profiles[requested];
+    if (known) return requested;
+    log.warn({ tenantId, profile: requested }, "Perfil no registrado; se usa la sesión por defecto");
+    return undefined;
   }
 
   private async acquireTenant(tenantId: string): Promise<() => void> {

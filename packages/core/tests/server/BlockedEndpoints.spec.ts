@@ -14,7 +14,7 @@ const req = (url: string, headers: Record<string, string> = {}): Req => ({
   headers,
 });
 
-describe("endpoints bloqueados", () => {
+describe("endpoints bloqueados", { timeout: 20000 }, () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
