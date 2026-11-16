@@ -7,6 +7,7 @@ import { parseEuroToCents } from "../client/ExpensesPage";
 interface Category {
   id: number;
   nombre: string;
+  deducible: boolean | null;
 }
 
 interface Expense {
@@ -124,6 +125,21 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
   const [noteFor, setNoteFor] = useState<{ id: number; action: "RECHAZADO" | "ANULADO" } | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  /** El contador confirma o cambia la deducibilidad de una categoría. */
+  async function setDeducible(categoryId: number, deducible: boolean) {
+    setError(null);
+    try {
+      const data = await apiPost<{ categories: Category[] }>(
+        "ledger/accountant/categories/deducible",
+        { tenant_id: tenantId, categoria_id: categoryId, deducible },
+        token,
+      );
+      setCategories(data.categories);
+    } catch {
+      setError(t("errors.generic"));
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -257,6 +273,45 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
           </button>
         </div>
       </form>
+
+      <section className="rounded-lg border border-hairline-soft p-6">
+        <h3 className="text-sm font-medium">{t("review.categoriesTitle")}</h3>
+        <p className="mt-1 text-xs text-steel">{t("review.categoriesHint")}</p>
+        <ul className="mt-4 divide-y divide-hairline-soft">
+          {categories.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <span className="text-sm">{c.nombre}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-steel">
+                  {c.deducible === null
+                    ? t("review.unconfirmed")
+                    : c.deducible
+                      ? t("review.deducibleYes")
+                      : t("review.deducibleNo")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void setDeducible(c.id, true)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                    c.deducible === true ? "bg-primary text-on-primary" : "border border-hairline-strong text-slate"
+                  }`}
+                >
+                  {t("review.deducibleYes")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void setDeducible(c.id, false)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                    c.deducible === false ? "bg-ink text-white" : "border border-hairline-strong text-slate"
+                  }`}
+                >
+                  {t("review.deducibleNo")}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {error && <p className="text-sm text-primary-deep">{error}</p>}
 
