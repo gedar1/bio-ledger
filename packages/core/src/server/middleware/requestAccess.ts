@@ -122,6 +122,8 @@ const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
   "ledger/accountant/expenses/update",
   "ledger/accountant/categories/deducible",
   "ledger/accountant/statement",
+  "ledger/accountant/categories/list",
+  "accountant/clients",
   "ledger/accountant/expenses/annul",
 ]);
 

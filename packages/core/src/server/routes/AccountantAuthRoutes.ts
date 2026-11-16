@@ -213,4 +213,25 @@ export function setupAccountantTenantRoutes(
       );
     },
   );
+
+  /** Lista de clientes de la cuenta del contador, con estado y si deben cambiar la contraseña. */
+  health.registerData("accountant/clients", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const claims = accountantClaims(body._authHeader);
+    if (!claims) {
+      return respond(401, errorEnvelope("AUTH_INVALID_TOKEN", "Token de contador no válido"));
+    }
+    const clients = registry
+      .list()
+      .filter((t) => t.owner_id === String(claims.account_id))
+      .map((t) => ({
+        tenant_id: t.tenant_id,
+        display_name: t.display_name,
+        status: t.status,
+        created_at: t.created_at,
+        must_change_password: registry.getCredentials(t.tenant_id)?.must_change_password ?? false,
+      }));
+    return respond(200, successEnvelope({ clients }));
+  });
+
 }
