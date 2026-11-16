@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { apiPost, ApiRequestError } from "../../api";
 
 interface ClientRow {
@@ -112,7 +113,11 @@ export function ClientsPage({ token }: { token: string }) {
             <tbody>
               {clients.map((c) => (
                 <tr key={c.tenant_id} className="border-t border-hairline-soft">
-                  <td className="px-4 py-3 font-mono">{c.tenant_id}</td>
+                  <td className="px-4 py-3 font-mono">
+                    <Link to={`/contador/clientes/${c.tenant_id}`} className="text-primary hover:underline">
+                      {c.tenant_id}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">{c.display_name}</td>
                   <td className="px-4 py-3 text-steel">
                     {c.must_change_password ? t("clients.mustChange") : t("clients.active")}
