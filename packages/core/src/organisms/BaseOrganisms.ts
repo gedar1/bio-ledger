@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import * as path from "node:path";
@@ -39,8 +40,7 @@ export abstract class BaseOrganisms implements IOrganism {
    */
   public async initializeContext(): Promise<void> {
     const serverPath =
-      process.env.BIOCORE_CELL_SERVER_PATH ??
-      path.join(__dirname, "..", "cells", "CellServer.js");
+      process.env.BIOCORE_CELL_SERVER_PATH ?? resolveCellServerPath(__dirname);
 
     const transport = new StdioClientTransport({
       command: "node",
@@ -126,4 +126,18 @@ export abstract class BaseOrganisms implements IOrganism {
    * @param intention Mensaje cruzado asíncrono desde el Orquestador principal u otro Órgano.
    */
   abstract process(intention: any): Promise<any>;
+}
+
+/**
+ * Proceso MCP de las células de un tenant. Si el build incluye application-cell.js
+ * (la composición del dominio del producto), se usa ese; si no, el del motor genérico.
+ * BIOCORE_CELL_SERVER_PATH sigue siendo la salida explícita.
+ */
+export function resolveCellServerPath(
+  baseDir: string,
+  exists: (candidate: string) => boolean = existsSync,
+): string {
+  const application = path.join(baseDir, "..", "application-cell.js");
+  if (exists(application)) return application;
+  return path.join(baseDir, "..", "cells", "CellServer.js");
 }

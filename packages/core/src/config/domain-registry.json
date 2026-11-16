@@ -12,6 +12,23 @@
         "update_record_status",
         "delete_record"
       ]
+    },
+    {
+      "type": "ledger_cliente",
+      "description": "Consulta de los gastos del cliente: lista de gastos, estado de cuenta de un periodo y categorías. Solo lectura.",
+      "tools": [
+        "list_my_expenses",
+        "get_my_statement",
+        "list_my_categories"
+      ]
+    },
+    {
+      "type": "ledger_contador",
+      "description": "Revisión del contador sobre el cliente seleccionado: gastos pendientes y estado de cuenta con deducible. Solo lectura.",
+      "tools": [
+        "list_pending_expenses",
+        "get_client_statement"
+      ]
     }
   ]
 }

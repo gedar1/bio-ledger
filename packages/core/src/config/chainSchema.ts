@@ -37,6 +37,8 @@ export const ChainRequirementSchema = z.object({
 
 export const ChainDefinitionSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]+$/, "id: minúsculas, números y guion"),
+  /** "tool": la respuesta es el texto que devuelve la última herramienta, sin el modelo. */
+  respond: z.enum(["tool"]).optional(),
   description: z.string().min(1),
   requires: z.array(ChainRequirementSchema).max(1).default([]),
   steps: z.array(ChainStepSchema).min(1),

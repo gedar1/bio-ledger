@@ -2,32 +2,30 @@
   "db_insert": "Inserta un registro en una tabla",
   "db_find": "Busca registros en una tabla según filtros",
   "db_query": "Consulta de solo lectura sobre la base del tenant (SELECT o WITH). No escribe ni borra datos. Para listar tablas: SELECT name FROM sqlite_master WHERE type='table'. Para ver columnas: SELECT name FROM pragma_table_info('nombre_tabla')",
-
   "scrape_url": "Extrae datos de una URL. Si no se indica schema, extrae título y texto completo de la página",
   "extract_links": "Extrae todos los links de una página",
   "scrape_metadata": "Extrae metadata (Open Graph, Twitter Cards) de una página",
-
   "read_file": "Lee el contenido de un archivo de texto",
   "write_file": "Escribe contenido en un archivo",
   "list_files": "Lista archivos en un directorio",
-
   "http_get": "Realiza una petición HTTP GET",
   "http_post": "Realiza una petición HTTP POST",
-
   "send_email": "Envía un email via Gmail",
   "send_whatsapp": "Envía un mensaje por WhatsApp",
-
   "git_status": "Obtiene el estado del repositorio Git",
   "git_commit": "Hace commit de los cambios",
-
   "execute_cli": "Ejecuta un comando CLI del sistema (usar solo si no hay alternativa NPM)",
   "check_command": "Verifica si un comando CLI está instalado en el sistema",
   "system_info": "Obtiene información del sistema (OS, CPU, memoria, Node version)",
-
   "ws_start_server": "Inicia un servidor WebSocket en el puerto especificado",
   "ws_stop_server": "Detiene el servidor WebSocket y desconecta todos los clientes",
   "ws_send": "Envía un mensaje a un cliente WebSocket específico por su ID",
   "ws_broadcast": "Envía un mensaje a todos los clientes WebSocket conectados",
   "ws_list_clients": "Lista todos los clientes WebSocket conectados",
-  "ws_disconnect_client": "Desconecta un cliente WebSocket específico por su ID"
+  "ws_disconnect_client": "Desconecta un cliente WebSocket específico por su ID",
+  "list_my_expenses": "Lista los gastos del cliente con fecha, concepto, categoría, importe y estado. Filtro opcional por estado.",
+  "get_my_statement": "Estado de cuenta del cliente para un periodo AAAA-MM o AAAA-Tn. Totales aprobados, pendientes y anulados.",
+  "list_my_categories": "Lista las categorías de gasto del cliente.",
+  "list_pending_expenses": "Lista los gastos pendientes de revisión del cliente seleccionado.",
+  "get_client_statement": "Estado de cuenta del cliente seleccionado para un periodo AAAA-MM o AAAA-Tn, con deducible y sin soporte."
 }

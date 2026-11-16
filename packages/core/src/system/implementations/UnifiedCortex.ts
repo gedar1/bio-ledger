@@ -43,6 +43,7 @@ import { CHAIN_MIN_SIMILARITY, PENDING_DISCARDED_WARNING } from "../../atoms/cha
 import { EXTRACTORS, chainSequence, sequenceKey } from "../../atoms/chainSpec.js";
 import type { ChainDefinition } from "../../config/chainSchema.js";
 import { runChain, type ChainPort } from "../chainRunner.js";
+import { extractToolText } from "../../atoms/chainResponse.js";
 import { DefaultPendingChainStore } from "../strategies/DefaultPendingChainStore.js";
 import type { IPendingChainStore } from "../strategies/IPendingChainStore.js";
 
@@ -525,7 +526,10 @@ export class UnifiedCortex extends BaseOrchestrator {
       },
     };
     try {
-      await runChain(chain, values, port);
+      const output = await runChain(chain, values, port);
+      if (chain.respond === "tool") {
+        return extractToolText(output) ?? chain.done;
+      }
       return chain.done;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
