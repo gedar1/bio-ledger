@@ -46,6 +46,11 @@ export async function apiPost<T>(
     payload = null;
   }
 
+  // Algunas rutas (p. ej. chat) responden el cuerpo directo, sin sobre de éxito.
+  if (response.ok && payload && typeof payload === "object" && !("success" in payload)) {
+    return payload as unknown as T;
+  }
+
   if (!response.ok || !payload || payload.success !== true) {
     const error =
       payload && payload.success === false ? payload.error : undefined;
