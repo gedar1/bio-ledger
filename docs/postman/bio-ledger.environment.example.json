@@ -1,0 +1,71 @@
+{
+  "name": "bio-ledger (ejemplo)",
+  "values": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "enabled": true
+    },
+    {
+      "key": "accountantUser",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "accountantPassword",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "apiSecret",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "tenantId",
+      "value": "cliente-postman",
+      "enabled": true
+    },
+    {
+      "key": "clientPassword",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "periodo",
+      "value": "2025-03",
+      "enabled": true
+    },
+    {
+      "key": "periodoFecha",
+      "value": "2025-03-10",
+      "enabled": true
+    },
+    {
+      "key": "accountantToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "clientToken",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "tempPassword",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "enabled": true
+    },
+    {
+      "key": "expenseId",
+      "value": "",
+      "enabled": true
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}
