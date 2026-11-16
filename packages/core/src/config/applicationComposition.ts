@@ -3,6 +3,7 @@ import { loadApplicationRegistry } from "./mergeRegistry.js";
 import { ToolExecutionError } from "../errors.js";
 import { ExampleMolecule } from "../molecules/ExampleMolecule.js";
 import { domainProfile } from "./domain-profile.js";
+import { ledgerRegistrations } from "./ledgerComposition.js";
 import type {
   CellComposition,
   CellRuntimeContext,
@@ -31,6 +32,7 @@ export function createApplicationComposition(): CellComposition {
     registry: applicationRegistry,
     allowedCells: domainProfile.allowedCells,
     registrations: [
+      ...ledgerRegistrations,
       {
         type: "example",
         factory: (context) => {
