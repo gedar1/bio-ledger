@@ -19,7 +19,8 @@
       "tools": [
         "list_my_expenses",
         "get_my_statement",
-        "list_my_categories"
+        "list_my_categories",
+        "get_my_month_statement"
       ]
     },
     {

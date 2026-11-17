@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { ExpenseMolecule } from "../../src/molecules/ExpenseMolecule.js";
 import { ledgerRegistrations, LEDGER_CLIENT_CELL, LEDGER_ACCOUNTANT_CELL } from "../../src/config/ledgerComposition.js";
 import { extractToolText } from "../../src/atoms/chainResponse.js";
+import { currentMonthCode } from "../../src/config/ledgerComposition.js";
+import { ledgerClientProfile } from "../../src/config/ledgerProfiles.js";
 
 type Handler = (args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text: string }> }>;
 
@@ -112,6 +114,42 @@ describe("herramientas del chat contable", () => {
     const res = await handlers["list_pending_expenses"]({});
     expect(res.content[0].text).toContain("Taxi");
     expect(res.content[0].text).not.toContain("Papel");
+  });
+});
+
+describe("estado de cuenta del mes actual", () => {
+  it("el código del mes sale en formato AAAA-MM", () => {
+    expect(currentMonthCode(new Date(2026, 10, 16))).toBe("2026-11");
+    expect(currentMonthCode(new Date(2026, 0, 3))).toBe("2026-01");
+  });
+
+  it("la herramienta sin periodo responde el mes actual", async () => {
+    const molecule = new ExpenseMolecule(join(tmpdir(), "month-" + Date.now() + ".db"));
+    await molecule.initialize();
+    const categoryId = molecule.listCategories()[0].id;
+    molecule.createExpense(
+      { fecha: currentMonthCode() + "-05", importe_cents: 2400, tasa_btw: 21, concepto: "Del mes", categoria_id: categoryId, con_soporte: true },
+      "CLIENT",
+    );
+    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_CLIENT_CELL)!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(server as never, {
+      tenantDbPath: "unused",
+      getResource: () => molecule,
+      trackResource: () => undefined,
+    } as never);
+    const res = await handlers["get_my_month_statement"]({});
+    await molecule.dispose();
+    expect(res.content[0].text).toContain("Estado de cuenta " + currentMonthCode());
+    expect(res.content[0].text).not.toContain("Deducible");
+  });
+
+  it("el perfil del cliente declara la cadena del mes actual sin datos", () => {
+    const chain = ledgerClientProfile.chains?.find((c) => c.id === "estado-de-cuenta-mes");
+    expect(chain).toBeDefined();
+    expect(chain?.requires).toEqual([]);
+    expect(chain?.steps).toEqual([{ cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} }]);
+    expect(chain?.respond).toBe("tool");
   });
 });
 
