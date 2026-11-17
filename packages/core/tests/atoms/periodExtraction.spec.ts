@@ -45,6 +45,12 @@ describe("extractPeriodo", () => {
     expect(extractPeriodo("", NOW)).toBeNull();
   });
 
+  it("un mes mal escrito junto a otro periodo es ambiguo, no se ejecuta con uno solo", () => {
+    expect(extractPeriodo("cuánto gasté en marzo y abri", NOW)).toBeNull();
+    expect(extractPeriodo("estado de cuenta de agost", NOW)).toBeNull();
+    expect(extractPeriodo("cuánto gasté en marzo", NOW)).toBe("2026-03");
+  });
+
   it("no confunde palabras comunes con meses", () => {
     expect(extractPeriodo("you may ask me later", NOW)).toBeNull();
   });

@@ -28,12 +28,43 @@ function normalize(text: string): string {
   return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+/** Distancia de Levenshtein entre dos palabras (inserciones, borrados y sustituciones). */
+function levenshtein(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const above = prev[j];
+      prev[j] = Math.min(above + 1, prev[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diagonal = above;
+    }
+  }
+  return prev[b.length];
+}
+
+/**
+ * Una palabra casi igual a un mes ("abri", "agost") suele ser un mes mal escrito. Si el
+ * mensaje también trae otro periodo, no se puede saber cuál quiso decir: se trata como ambiguo.
+ */
+function hasNearMonthTypo(text: string): boolean {
+  const words = text.match(/[a-z]+/g) ?? [];
+  const names = Object.keys(MONTHS);
+  return words.some(
+    (word) =>
+      word.length >= 4 &&
+      !names.includes(word) &&
+      names.some((name) => name.length >= 5 && levenshtein(word, name) === 1),
+  );
+}
+
 function monthCode(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
 export function extractPeriodo(text: string, now: Date = new Date()): string | null {
   const t = normalize(text);
+  if (hasNearMonthTypo(t)) return null;
   const year = (() => {
     const explicit = /\b(20\d{2})\b/.exec(t);
     return explicit ? Number(explicit[1]) : now.getFullYear();
