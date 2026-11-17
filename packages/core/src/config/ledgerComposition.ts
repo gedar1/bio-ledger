@@ -27,9 +27,9 @@ const ESTADO_TEXTO: Record<(typeof ESTADOS)[number], string> = {
 const eur = new Intl.NumberFormat("nl-NL", { style: "currency", currency: "EUR" });
 const formatCents = (cents: number): string => eur.format(cents / 100);
 
+// Sin regex: el proveedor del modelo no admite 'pattern'. El manejador valida el formato.
 const PERIODO = z
   .string()
-  .regex(/^(\d{4}-\d{2}|\d{4}-T[1-4])$/, "periodo: AAAA-MM o AAAA-Tn")
   .describe("Periodo: AAAA-MM para un mes o AAAA-T1 a AAAA-T4 para un trimestre");
 
 function moleculeFor(context: CellRuntimeContext, key: string): ExpenseMolecule {
@@ -77,6 +77,11 @@ function formatStatement(statement: Statement, verRevision: boolean): string {
     lineas.push(`Sin soporte: ${formatCents(a.sin_soporte_cents)}.`);
   }
   return lineas.join("\n");
+}
+
+/** Código del mes actual en formato AAAA-MM, según la hora del servidor. */
+export function currentMonthCode(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function textResult(text: string) {
@@ -134,6 +139,21 @@ export const ledgerRegistrations: Registration[] = [
         async () => {
           const names = [...categoryNames().values()];
           return textResult(names.length === 0 ? "No hay categorías." : names.map((n) => `- ${n}`).join("\n"));
+        },
+      );
+
+      server.registerTool(
+        "get_my_month_statement",
+        {
+          description:
+            "Estado de cuenta del mes actual del cliente, sin periodo. Úsala solo cuando la pregunta sea del mes en curso; si nombra otro mes o trimestre, usa get_my_statement.",
+          inputSchema: {},
+        },
+        async () => {
+          const period = parsePeriod(currentMonthCode());
+          if (!period) return textResult("No se pudo determinar el mes actual.");
+          const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
+          return textResult(formatStatement(buildStatement(period, molecule.listExpenses(), molecule.listCategories()), false));
         },
       );
     },

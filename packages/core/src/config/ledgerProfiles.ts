@@ -20,6 +20,26 @@ export const ledgerClientProfile: ProfileConfig = {
       respond: "tool",
       done: "Estos son tus gastos.",
     },
+    {
+      id: "estado-de-cuenta-mes",
+      description: "Estado de cuenta del mes actual del cliente",
+      requires: [],
+      setup: [],
+      steps: [{ cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} }],
+      respond: "tool",
+      done: "Este es tu estado de cuenta del mes.",
+    },
+    {
+      id: "estado-de-cuenta",
+      description: "Estado de cuenta del cliente para un mes o trimestre indicado",
+      requires: [
+        { name: "periodo", extractor: "periodo", ask: "¿De qué mes o trimestre quieres el estado de cuenta?" },
+      ],
+      setup: [],
+      steps: [{ cell: LEDGER_CLIENT_CELL, tool: "get_my_statement", args: { periodo: "$requires.periodo" } }],
+      respond: "tool",
+      done: "Este es tu estado de cuenta.",
+    },
   ],
 };
 
