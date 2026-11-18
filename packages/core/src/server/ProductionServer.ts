@@ -43,6 +43,7 @@ import { HealthStatusCalculator } from "./services/HealthStatusCalculator.js";
 import { AlertService } from "./services/AlertService.js";
 import { AuditLogger } from "./services/AuditLogger.js";
 import { TenantAuthService } from "./services/TenantAuthService.js";
+import { registerLedgerProfiles } from "../config/ledgerProfiles.js";
 import { AccountantAuthService } from "./services/AccountantAuthService.js";
 import { LoginRateLimiter } from "./middleware/loginRateLimiter.js";
 import Database from "better-sqlite3";
@@ -173,6 +174,7 @@ async function main() {
 
   // TenantManager is created only after platform services so every traffic
   // Cortex receives the same registry/metrics dependencies when available.
+  registerLedgerProfiles();
   const tenantManager = new TenantManager({
     registry: platformRegistry,
     metrics: platformMetricsCollector,

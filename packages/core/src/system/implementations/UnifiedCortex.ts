@@ -39,10 +39,19 @@ import {
 import type { ILogger } from "../../config/ILogger.js";
 import type { IUsageMetricsSink } from "../interfaces/IUsageMetricsSink.js";
 import type { ITenantTokenLimitReader } from "../interfaces/ITenantTokenLimitReader.js";
-import { CHAIN_MIN_SIMILARITY, PENDING_DISCARDED_WARNING } from "../../atoms/chainExtraction.js";
-import { EXTRACTORS, chainSequence, sequenceKey } from "../../atoms/chainSpec.js";
+import {
+  CHAIN_MIN_SIMILARITY,
+  PENDING_DISCARDED_WARNING,
+} from "../../atoms/chainExtraction.js";
+import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
+import {
+  EXTRACTORS,
+  chainSequence,
+  sequenceKey,
+} from "../../atoms/chainSpec.js";
 import type { ChainDefinition } from "../../config/chainSchema.js";
 import { runChain, type ChainPort } from "../chainRunner.js";
+import { extractToolText } from "../../atoms/chainResponse.js";
 import { DefaultPendingChainStore } from "../strategies/DefaultPendingChainStore.js";
 import type { IPendingChainStore } from "../strategies/IPendingChainStore.js";
 
@@ -448,8 +457,23 @@ export class UnifiedCortex extends BaseOrchestrator {
     [];
 
   private async refreshTools(): Promise<void> {
-    this.toolSnapshot =
+    const tools =
       (await this.getUnifiedTools()) as unknown as readonly import("../providers/providerTypes.js").LLMTool[];
+    this.toolSnapshot = this.withoutRedundantStimulus(tools);
+  }
+
+  /**
+   * Quita stimulate_differentiation cuando todas las células permitidas ya están mutadas.
+   * En ese caso el modelo no necesita mutar, y su llamada solo se bloquearía como duplicada.
+   */
+  private withoutRedundantStimulus(
+    tools: readonly import("../providers/providerTypes.js").LLMTool[],
+  ): readonly import("../providers/providerTypes.js").LLMTool[] {
+    return filterRedundantMutationTool(
+      tools,
+      this.organisms[0]?.getAllowedCells() ?? [],
+      this._mutatedTypes,
+    );
   }
 
   private addUserMessage(content: string): void {
@@ -525,7 +549,10 @@ export class UnifiedCortex extends BaseOrchestrator {
       },
     };
     try {
-      await runChain(chain, values, port);
+      const output = await runChain(chain, values, port);
+      if (chain.respond === "tool") {
+        return extractToolText(output) ?? chain.done;
+      }
       return chain.done;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

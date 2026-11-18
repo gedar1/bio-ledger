@@ -200,6 +200,14 @@ export function setupLedgerRoutes(
       return failure(error);
     }
   });
+  health.registerData("ledger/accountant/categories/list", async (params?: unknown) => {
+    const body = (params ?? {}) as Record<string, unknown>;
+    const tenantId = accountantTenant(body._authHeader, body.tenant_id);
+    if (!tenantId) return notFound();
+    const store = await storeFor(tenantId);
+    return respond(200, successEnvelope({ categories: store.listCategories() }));
+  });
+
   // ─── Estado de cuenta ─────────────────────────────────────────────────────
 
   health.registerData("ledger/statement", async (params?: unknown) => {
