@@ -44,7 +44,10 @@ export function parsePeriod(periodo: string): StatementPeriod | null {
 }
 
 /** Separa el BTW de un total con IVA incluido. */
-export function splitBtw(grossCents: number, rate: BtwRate): { netCents: number; btwCents: number } {
+export function splitBtw(
+  grossCents: number,
+  rate: BtwRate,
+): { netCents: number; btwCents: number } {
   const btwCents = Math.round((grossCents * rate) / (100 + rate));
   return { netCents: grossCents - btwCents, btwCents };
 }
@@ -74,8 +77,17 @@ export interface Statement {
   aprobados: {
     cantidad: number;
     total_cents: number;
-    por_categoria: Array<{ categoria_id: number; nombre: string; total_cents: number }>;
-    por_tasa_btw: Array<{ tasa: BtwRate; base_cents: number; btw_cents: number; total_cents: number }>;
+    por_categoria: Array<{
+      categoria_id: number;
+      nombre: string;
+      total_cents: number;
+    }>;
+    por_tasa_btw: Array<{
+      tasa: BtwRate;
+      base_cents: number;
+      btw_cents: number;
+      total_cents: number;
+    }>;
     /** Gastos aprobados, con soporte y de categoría deducible. */
     deducible_cents: number;
     /** Gastos aprobados sin soporte. No cuentan como deducibles. */
@@ -95,21 +107,29 @@ export function buildStatement(
   expenses: StatementExpense[],
   categories: StatementCategory[],
 ): Statement {
-  const inPeriod = expenses.filter((e) => e.fecha >= period.desde && e.fecha <= period.hasta);
+  const inPeriod = expenses.filter(
+    (e) => e.fecha >= period.desde && e.fecha <= period.hasta,
+  );
   const approved = inPeriod.filter((e) => e.estado === "APROBADO");
   const pending = inPeriod.filter((e) => e.estado === "PENDIENTE");
   const annulled = inPeriod.filter((e) => e.estado === "ANULADO");
   const categoryById = new Map(categories.map((c) => [c.id, c]));
 
   const porCategoria = new Map<number, number>();
-  const porTasa = new Map<BtwRate, { base: number; btw: number; total: number }>();
+  const porTasa = new Map<
+    BtwRate,
+    { base: number; btw: number; total: number }
+  >();
   let total = 0;
   let deducible = 0;
   let sinSoporte = 0;
 
   for (const e of approved) {
     total += e.importe_cents;
-    porCategoria.set(e.categoria_id, (porCategoria.get(e.categoria_id) ?? 0) + e.importe_cents);
+    porCategoria.set(
+      e.categoria_id,
+      (porCategoria.get(e.categoria_id) ?? 0) + e.importe_cents,
+    );
 
     const { netCents, btwCents } = splitBtw(e.importe_cents, e.tasa_btw);
     const tasa = porTasa.get(e.tasa_btw) ?? { base: 0, btw: 0, total: 0 };
@@ -142,7 +162,12 @@ export function buildStatement(
         }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre)),
       por_tasa_btw: [...porTasa.entries()]
-        .map(([tasa, v]) => ({ tasa, base_cents: v.base, btw_cents: v.btw, total_cents: v.total }))
+        .map(([tasa, v]) => ({
+          tasa,
+          base_cents: v.base,
+          btw_cents: v.btw,
+          total_cents: v.total,
+        }))
         .sort((a, b) => a.tasa - b.tasa),
       deducible_cents: deducible,
       sin_soporte_cents: sinSoporte,
@@ -156,4 +181,51 @@ export function buildStatement(
       total_cents: pending.reduce((sum, e) => sum + e.importe_cents, 0),
     },
   };
+}
+
+export interface CategoryTotal {
+  categoria_id: number;
+  nombre: string;
+  cantidad: number;
+  total_cents: number;
+}
+
+/**
+ * Cuánto se gastó por categoría en un periodo: aprobados y pendientes de aprobación.
+ * Rechazados y anulados no cuentan. Va de mayor a menor importe.
+ */
+export function categoryTotals(
+  period: StatementPeriod,
+  expenses: StatementExpense[],
+  categories: StatementCategory[],
+): CategoryTotal[] {
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const porCategoria = new Map<
+    number,
+    { cantidad: number; total_cents: number }
+  >();
+
+  for (const e of expenses) {
+    if (e.fecha < period.desde || e.fecha > period.hasta) continue;
+    if (e.estado !== "APROBADO" && e.estado !== "PENDIENTE") continue;
+    const acumulado = porCategoria.get(e.categoria_id) ?? {
+      cantidad: 0,
+      total_cents: 0,
+    };
+    acumulado.cantidad += 1;
+    acumulado.total_cents += e.importe_cents;
+    porCategoria.set(e.categoria_id, acumulado);
+  }
+
+  return [...porCategoria.entries()]
+    .map(([id, v]) => ({
+      categoria_id: id,
+      nombre: categoryById.get(id)?.nombre ?? "Sin categoría",
+      cantidad: v.cantidad,
+      total_cents: v.total_cents,
+    }))
+    .sort(
+      (a, b) =>
+        b.total_cents - a.total_cents || a.nombre.localeCompare(b.nombre),
+    );
 }
