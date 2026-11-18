@@ -3,12 +3,18 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExpenseMolecule } from "../../src/molecules/ExpenseMolecule.js";
-import { ledgerRegistrations, LEDGER_CLIENT_CELL, LEDGER_ACCOUNTANT_CELL } from "../../src/config/ledgerComposition.js";
+import {
+  ledgerRegistrations,
+  LEDGER_CLIENT_CELL,
+  LEDGER_ACCOUNTANT_CELL,
+} from "../../src/config/ledgerComposition.js";
 import { extractToolText } from "../../src/atoms/chainResponse.js";
 import { currentMonthCode } from "../../src/config/ledgerComposition.js";
 import { ledgerClientProfile } from "../../src/config/ledgerProfiles.js";
 
-type Handler = (args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text: string }> }>;
+type Handler = (
+  args: Record<string, unknown>,
+) => Promise<{ content: Array<{ type: string; text: string }> }>;
 
 /** Servidor MCP simulado: guarda los handlers de cada herramienta registrada. */
 function fakeServer() {
@@ -34,19 +40,37 @@ describe("herramientas del chat contable", () => {
     await molecule.initialize();
     categoryId = molecule.listCategories()[0].id;
     const aprobado = molecule.createExpense(
-      { fecha: "2025-03-10", importe_cents: 12100, tasa_btw: 21, concepto: "Papel", categoria_id: categoryId, con_soporte: true },
+      {
+        fecha: "2025-03-10",
+        importe_cents: 12100,
+        tasa_btw: 21,
+        concepto: "Papel",
+        categoria_id: categoryId,
+        con_soporte: true,
+      },
       "CLIENT",
     );
     molecule.decideExpense(aprobado.id, "APROBADO", "contador");
     molecule.createExpense(
-      { fecha: "2025-03-12", importe_cents: 900, tasa_btw: 0, concepto: "Taxi", categoria_id: categoryId },
+      {
+        fecha: "2025-03-12",
+        importe_cents: 900,
+        tasa_btw: 0,
+        concepto: "Taxi",
+        categoria_id: categoryId,
+      },
       "CLIENT",
     );
   });
 
   afterEach(async () => {
     await molecule.dispose();
-    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    rmSync(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
   });
 
   function contextFor(key: string) {
@@ -115,6 +139,14 @@ describe("herramientas del chat contable", () => {
     expect(res.content[0].text).toContain("Taxi");
     expect(res.content[0].text).not.toContain("Papel");
   });
+
+  it("el cliente lista sus categorías como líneas de texto", async () => {
+    const handlers = registerCell(LEDGER_CLIENT_CELL);
+    const res = await handlers["list_my_categories"]({});
+    const nombre = molecule.listCategories()[0].nombre;
+
+    expect(res.content[0].text).toContain(`- ${nombre}`);
+  });
 });
 
 describe("estado de cuenta del mes actual", () => {
@@ -124,38 +156,200 @@ describe("estado de cuenta del mes actual", () => {
   });
 
   it("la herramienta sin periodo responde el mes actual", async () => {
-    const molecule = new ExpenseMolecule(join(tmpdir(), "month-" + Date.now() + ".db"));
+    const molecule = new ExpenseMolecule(
+      join(tmpdir(), "month-" + Date.now() + ".db"),
+    );
     await molecule.initialize();
     const categoryId = molecule.listCategories()[0].id;
     molecule.createExpense(
-      { fecha: currentMonthCode() + "-05", importe_cents: 2400, tasa_btw: 21, concepto: "Del mes", categoria_id: categoryId, con_soporte: true },
+      {
+        fecha: currentMonthCode() + "-05",
+        importe_cents: 2400,
+        tasa_btw: 21,
+        concepto: "Del mes",
+        categoria_id: categoryId,
+        con_soporte: true,
+      },
       "CLIENT",
     );
-    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_CLIENT_CELL)!;
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
     const { handlers, server } = fakeServer();
-    registration.registerTools(server as never, {
-      tenantDbPath: "unused",
-      getResource: () => molecule,
-      trackResource: () => undefined,
-    } as never);
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: "unused",
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
     const res = await handlers["get_my_month_statement"]({});
     await molecule.dispose();
-    expect(res.content[0].text).toContain("Estado de cuenta " + currentMonthCode());
+    expect(res.content[0].text).toContain(
+      "Estado de cuenta " + currentMonthCode(),
+    );
     expect(res.content[0].text).not.toContain("Deducible");
   });
 
   it("el perfil del cliente declara la cadena del mes actual sin datos", () => {
-    const chain = ledgerClientProfile.chains?.find((c) => c.id === "estado-de-cuenta-mes");
+    const chain = ledgerClientProfile.chains?.find(
+      (c) => c.id === "estado-de-cuenta-mes",
+    );
     expect(chain).toBeDefined();
     expect(chain?.requires).toEqual([]);
-    expect(chain?.steps).toEqual([{ cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} }]);
+    expect(chain?.steps).toEqual([
+      { cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} },
+    ]);
+    expect(chain?.respond).toBe("tool");
+  });
+});
+
+describe("gasto del cliente por categoría", () => {
+  let dir: string;
+  let molecule: ExpenseMolecule;
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), "ledger-categorias-"));
+    molecule = new ExpenseMolecule(join(dir, "cliente.db"));
+    await molecule.initialize();
+    const categoryId = molecule.listCategories()[0].id;
+    const aprobado = molecule.createExpense(
+      {
+        fecha: "2025-03-10",
+        importe_cents: 12100,
+        tasa_btw: 21,
+        concepto: "Papel",
+        categoria_id: categoryId,
+        con_soporte: true,
+      },
+      "CLIENT",
+    );
+    molecule.decideExpense(aprobado.id, "APROBADO", "contador");
+    molecule.createExpense(
+      {
+        fecha: "2025-03-12",
+        importe_cents: 900,
+        tasa_btw: 0,
+        concepto: "Taxi",
+        categoria_id: categoryId,
+      },
+      "CLIENT",
+    );
+  });
+
+  afterEach(async () => {
+    await molecule.dispose();
+    rmSync(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
+  });
+
+  it("suma aprobados y pendientes del periodo pedido y da el total", async () => {
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: join(dir, "cliente.db"),
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
+    const res = await handlers["get_my_category_totals"]({
+      periodo: "2025-03",
+    });
+    const text = res.content[0].text;
+
+    expect(text).toContain("Gastos de 2025-03 por categoría");
+    expect(text).toContain("(aprobados y pendientes)");
+    expect(text).toContain("Total: ");
+    expect(text).toContain("(2 gasto(s))");
+    expect(text).toContain("130,00");
+  });
+
+  it("un periodo sin gastos responde que no hay gastos", async () => {
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: join(dir, "cliente.db"),
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
+    const res = await handlers["get_my_category_totals"]({
+      periodo: "2019-01",
+    });
+    expect(res.content[0].text).toBe("No hay gastos en 2019-01.");
+  });
+});
+
+describe("cadena de categorías del cliente", () => {
+  it("el perfil del cliente declara la cadena de categorías sin datos", () => {
+    const chain = ledgerClientProfile.chains?.find(
+      (c) => c.id === "mis-categorias",
+    );
+    expect(chain).toBeDefined();
+    expect(chain?.requires).toEqual([]);
+    expect(chain?.steps).toEqual([
+      { cell: LEDGER_CLIENT_CELL, tool: "list_my_categories", args: {} },
+    ]);
+    expect(chain?.respond).toBe("tool");
+  });
+
+  it("el perfil del cliente declara la cadena de gasto por categoría del mes sin datos", () => {
+    const chain = ledgerClientProfile.chains?.find(
+      (c) => c.id === "gasto-por-categoria-mes",
+    );
+    expect(chain).toBeDefined();
+    expect(chain?.requires).toEqual([]);
+    expect(chain?.steps).toEqual([
+      {
+        cell: LEDGER_CLIENT_CELL,
+        tool: "get_my_month_category_totals",
+        args: {},
+      },
+    ]);
+    expect(chain?.respond).toBe("tool");
+  });
+
+  it("el perfil del cliente declara la cadena de gasto por categoría con un periodo", () => {
+    const chain = ledgerClientProfile.chains?.find(
+      (c) => c.id === "gasto-por-categoria-periodo",
+    );
+    expect(chain).toBeDefined();
+    expect(chain?.requires).toEqual([
+      {
+        name: "periodo",
+        extractor: "periodo",
+        ask: "¿De qué mes o trimestre quieres el gasto por categoría?",
+      },
+    ]);
+    expect(chain?.steps).toEqual([
+      {
+        cell: LEDGER_CLIENT_CELL,
+        tool: "get_my_category_totals",
+        args: { periodo: "$requires.periodo" },
+      },
+    ]);
     expect(chain?.respond).toBe("tool");
   });
 });
 
 describe("texto de respuesta de una cadena", () => {
   it("toma el texto del contenido MCP", () => {
-    expect(extractToolText({ content: [{ type: "text", text: "Hola" }] })).toBe("Hola");
+    expect(extractToolText({ content: [{ type: "text", text: "Hola" }] })).toBe(
+      "Hola",
+    );
   });
 
   it("acepta un texto directo", () => {
