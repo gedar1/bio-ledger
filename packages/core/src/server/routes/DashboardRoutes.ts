@@ -7,6 +7,7 @@ import {
   resolveTenantAccess,
   resolvePlatformAccess,
 } from "../middleware/requestAccess.js";
+import { chatProfileFor } from "../middleware/requestAccess.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
 import {
   getDeploymentMode,
@@ -136,7 +137,11 @@ export function setupDashboardRoutes(
     if (!body?.message) return { error: "message requerido" };
     const tenantId = access.tenantId;
     try {
-      const response = await tenantManager.chat(tenantId, body.message);
+      const response = await tenantManager.chat(
+        tenantId,
+        body.message,
+        chatProfileFor(body || {}, tenantAuthService),
+      );
       return { tenantId, response };
     } catch (error: any) {
       return { tenantId, error: error.message };
