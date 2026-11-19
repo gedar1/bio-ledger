@@ -1,17 +1,18 @@
 import { z } from "zod";
-import { ToolExecutionError } from "../errors.js";
-import { ExpenseMolecule, type Expense } from "../molecules/ExpenseMolecule.js";
+import { ToolExecutionError } from "../../errors.js";
+import { ExpenseMolecule, type Expense } from "../../molecules/ExpenseMolecule.js";
 import {
   buildStatement,
   categoryTotals,
+  largestExpense,
   parsePeriod,
   type Statement,
   type StatementPeriod,
-} from "../atoms/statement.js";
+} from "../../atoms/statement.js";
 import type {
   CellComposition,
   CellRuntimeContext,
-} from "../cells/CellComposition.js";
+} from "../../cells/CellComposition.js";
 
 type Registration = NonNullable<CellComposition["registrations"]>[number];
 
@@ -281,6 +282,30 @@ export const ledgerRegistrations: Registration[] = [
           return categoryTotalsResult(
             period,
             moleculeFor(context, LEDGER_CLIENT_CELL),
+          );
+        },
+      );
+
+      server.registerTool(
+        "get_my_largest_expense",
+        {
+          description:
+            "Gasto de mayor importe del cliente en un mes o trimestre (aprobado y pendiente). Requiere periodo AAAA-MM o AAAA-Tn.",
+          inputSchema: { periodo: PERIODO },
+        },
+        async ({ periodo }) => {
+          const period = parsePeriod(periodo);
+          if (!period)
+            return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
+          const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
+          const categoryNames = new Map(
+            molecule.listCategories().map((c) => [c.id, c.nombre]),
+          );
+          const expense = largestExpense(period, molecule.listExpenses());
+          if (!expense)
+            return textResult(`No hay gastos en ${period.periodo}.`);
+          return textResult(
+            `Gasto más caro de ${period.periodo}:\n${formatExpenseLine(expense, categoryNames.get(expense.categoria_id) ?? "Sin categoría")}`,
           );
         },
       );

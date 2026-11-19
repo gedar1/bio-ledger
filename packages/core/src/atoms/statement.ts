@@ -229,3 +229,29 @@ export function categoryTotals(
         b.total_cents - a.total_cents || a.nombre.localeCompare(b.nombre),
     );
 }
+
+/** Gasto con los campos que necesita el cálculo del más caro. */
+export type LargestCandidate = StatementExpense & { id: number; concepto: string };
+
+/**
+ * Gasto de mayor importe del periodo, entre aprobados y pendientes. Rechazados y anulados
+ * no cuentan. En empate gana el más antiguo. Devuelve null si no hay ninguno.
+ */
+export function largestExpense<T extends LargestCandidate>(
+  period: StatementPeriod,
+  expenses: readonly T[],
+): T | null {
+  let best: T | null = null;
+  for (const e of expenses) {
+    if (e.fecha < period.desde || e.fecha > period.hasta) continue;
+    if (e.estado !== "APROBADO" && e.estado !== "PENDIENTE") continue;
+    if (
+      best === null ||
+      e.importe_cents > best.importe_cents ||
+      (e.importe_cents === best.importe_cents && e.fecha < best.fecha)
+    ) {
+      best = e;
+    }
+  }
+  return best;
+}

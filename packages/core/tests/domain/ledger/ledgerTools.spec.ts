@@ -2,15 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ExpenseMolecule } from "../../src/molecules/ExpenseMolecule.js";
+import { ExpenseMolecule } from "../../../src/molecules/ExpenseMolecule.js";
 import {
   ledgerRegistrations,
   LEDGER_CLIENT_CELL,
   LEDGER_ACCOUNTANT_CELL,
-} from "../../src/config/ledgerComposition.js";
-import { extractToolText } from "../../src/atoms/chainResponse.js";
-import { currentMonthCode } from "../../src/config/ledgerComposition.js";
-import { ledgerClientProfile } from "../../src/config/ledgerProfiles.js";
+} from "../../../src/domain/ledger/ledgerComposition.js";
+import { extractToolText } from "../../../src/atoms/chainResponse.js";
+import { currentMonthCode } from "../../../src/domain/ledger/ledgerComposition.js";
+import { ledgerClientProfile } from "../../../src/config/ledgerProfiles.js";
 
 type Handler = (
   args: Record<string, unknown>,
@@ -338,6 +338,106 @@ describe("cadena de categorías del cliente", () => {
       {
         cell: LEDGER_CLIENT_CELL,
         tool: "get_my_category_totals",
+        args: { periodo: "$requires.periodo" },
+      },
+    ]);
+    expect(chain?.respond).toBe("tool");
+  });
+});
+
+describe("gasto más caro del cliente", () => {
+  let dir: string;
+  let molecule: ExpenseMolecule;
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), "ledger-mas-caro-"));
+    molecule = new ExpenseMolecule(join(dir, "cliente.db"));
+    await molecule.initialize();
+    const categoryId = molecule.listCategories()[0].id;
+    const aprobado = molecule.createExpense(
+      {
+        fecha: "2025-03-10",
+        importe_cents: 12100,
+        tasa_btw: 21,
+        concepto: "Papel",
+        categoria_id: categoryId,
+        con_soporte: true,
+      },
+      "CLIENT",
+    );
+    molecule.decideExpense(aprobado.id, "APROBADO", "contador");
+    molecule.createExpense(
+      {
+        fecha: "2025-03-12",
+        importe_cents: 900,
+        tasa_btw: 0,
+        concepto: "Taxi",
+        categoria_id: categoryId,
+      },
+      "CLIENT",
+    );
+  });
+
+  afterEach(async () => {
+    await molecule.dispose();
+    rmSync(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
+  });
+
+  function handlerFor(name: string) {
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: join(dir, "cliente.db"),
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
+    return handlers[name];
+  }
+
+  it("devuelve el gasto de mayor importe del periodo con su línea de formato fijo", async () => {
+    const res = await handlerFor("get_my_largest_expense")({
+      periodo: "2025-03",
+    });
+    const text = res.content[0].text;
+
+    expect(text).toContain("Gasto más caro de 2025-03:");
+    expect(text).toContain("Papel");
+    expect(text).not.toContain("Taxi");
+  });
+
+  it("un periodo sin gastos responde que no hay gastos", async () => {
+    const res = await handlerFor("get_my_largest_expense")({
+      periodo: "2019-01",
+    });
+    expect(res.content[0].text).toBe("No hay gastos en 2019-01.");
+  });
+
+  it("el perfil del cliente declara la cadena con periodo obligatorio", () => {
+    const chain = ledgerClientProfile.chains?.find(
+      (c) => c.id === "gasto-mas-caro",
+    );
+    expect(chain).toBeDefined();
+    expect(chain?.requires).toEqual([
+      {
+        name: "periodo",
+        extractor: "periodo",
+        ask: "¿De qué mes o trimestre quieres saber tu gasto más caro?",
+      },
+    ]);
+    expect(chain?.steps).toEqual([
+      {
+        cell: LEDGER_CLIENT_CELL,
+        tool: "get_my_largest_expense",
         args: { periodo: "$requires.periodo" },
       },
     ]);

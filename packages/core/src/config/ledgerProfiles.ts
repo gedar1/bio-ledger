@@ -5,7 +5,7 @@ import {
 import {
   LEDGER_ACCOUNTANT_CELL,
   LEDGER_CLIENT_CELL,
-} from "./ledgerComposition.js";
+} from "../domain/ledger/ledgerComposition.js";
 import {
   LEDGER_ACCOUNTANT_PROFILE,
   LEDGER_CLIENT_PROFILE,
@@ -109,6 +109,28 @@ export const ledgerClientProfile: ProfileConfig = {
       ],
       respond: "tool",
       done: "Este es tu gasto por categoría del periodo.",
+    },
+    {
+      id: "gasto-mas-caro",
+      description:
+        "Gasto de mayor importe del cliente en un mes o trimestre indicado",
+      requires: [
+        {
+          name: "periodo",
+          extractor: "periodo",
+          ask: "¿De qué mes o trimestre quieres saber tu gasto más caro?",
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_CLIENT_CELL,
+          tool: "get_my_largest_expense",
+          args: { periodo: "$requires.periodo" },
+        },
+      ],
+      respond: "tool",
+      done: "Este es tu gasto más caro del periodo.",
     },
   ],
 };
