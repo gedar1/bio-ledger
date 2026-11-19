@@ -20,6 +20,7 @@ import { getModuleDir, resolveDataPath } from "../atoms/paths.js";
 import type { TenantRegistryService } from "./services/TenantRegistryService.js";
 import type { IUsageMetricsSink } from "../system/interfaces/IUsageMetricsSink.js";
 import type { CircuitState } from "../infrastructure/CircuitBreaker.js";
+import type { ChatView } from "../atoms/chatView.js";
 
 const __dirname = getModuleDir(import.meta.url);
 
@@ -89,6 +90,12 @@ export interface TenantInfo {
  * Gestiona múltiples tenants (clientes), cada uno con su propio
  * Cortex, organismos, historial y estado de célula aislados.
  */
+/** Respuesta de un turno del chat: el texto y la última vista de datos de la sesión. */
+export interface ChatResult {
+  text: string;
+  view: ChatView | null;
+}
+
 export class TenantManager {
   readonly tenants: Map<string, TenantInfo> = new Map();
   private readonly maxTenants: number;
@@ -259,6 +266,11 @@ export class TenantManager {
    * Envía un mensaje al Cortex de un tenant.
    */
   async chat(tenantId: string, message: string, profile?: string): Promise<string> {
+    return (await this.chatWithView(tenantId, message, profile)).text;
+  }
+
+  /** Igual que chat, pero devuelve también la última vista de datos de la sesión. */
+  async chatWithView(tenantId: string, message: string, profile?: string): Promise<ChatResult> {
     const release = await this.acquireTenant(sessionKey(tenantId, profile));
     try {
       const tenant = await this.getTenant(tenantId, profile);
@@ -270,7 +282,10 @@ export class TenantManager {
         .slice(beforeSize)
         .filter((entry) => entry.role === "assistant")
         .pop();
-      return assistantMsg?.content || "Sin respuesta";
+      return {
+        text: assistantMsg?.content || "Sin respuesta",
+        view: tenant.cortex.currentView(),
+      };
     } finally {
       release();
     }

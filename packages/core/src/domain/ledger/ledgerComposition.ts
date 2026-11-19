@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { ToolExecutionError } from "../../errors.js";
-import { ExpenseMolecule, type Expense } from "../../molecules/ExpenseMolecule.js";
+import {
+  ExpenseMolecule,
+  type Expense,
+} from "../../molecules/ExpenseMolecule.js";
 import {
   buildStatement,
   categoryTotals,
@@ -9,6 +12,7 @@ import {
   type Statement,
   type StatementPeriod,
 } from "../../atoms/statement.js";
+import type { ChatView } from "../../atoms/chatView.js";
 import type {
   CellComposition,
   CellRuntimeContext,
@@ -129,13 +133,30 @@ function categoryTotalsResult(
     (t) =>
       `- ${t.nombre}: ${formatCents(t.total_cents)} (${t.cantidad} gasto(s))`,
   );
-  return textResult(
-    [
-      `Gastos de ${period.periodo} por categoría (aprobados y pendientes), en EUR:`,
-      ...lineas,
-      `Total: ${formatCents(total)}`,
-    ].join("\n"),
-  );
+  const view: ChatView = {
+    type: "table",
+    title: `Gasto por categoría, ${period.periodo}`,
+    columns: ["Categoría", "Importe", "Gastos"],
+    rows: totals.map((t) => [
+      t.nombre,
+      formatCents(t.total_cents),
+      String(t.cantidad),
+    ]),
+    total: formatCents(total),
+  };
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: [
+          `Gastos de ${period.periodo} por categoría (aprobados y pendientes), en EUR:`,
+          ...lineas,
+          `Total: ${formatCents(total)}`,
+        ].join("\n"),
+      },
+    ],
+    structuredContent: { view },
+  };
 }
 
 /** Registro de las células de lectura del producto. Solo leen; nunca escriben. */
@@ -246,24 +267,6 @@ export const ledgerRegistrations: Registration[] = [
               ),
               false,
             ),
-          );
-        },
-      );
-
-      server.registerTool(
-        "get_my_month_category_totals",
-        {
-          description:
-            "Cuánto gastó el cliente por categoría en el mes actual (aprobados y pendientes), de mayor a menor. Sin periodo.",
-          inputSchema: {},
-        },
-        async () => {
-          const period = parsePeriod(currentMonthCode());
-          if (!period)
-            return textResult("No se pudo determinar el mes actual.");
-          return categoryTotalsResult(
-            period,
-            moleculeFor(context, LEDGER_CLIENT_CELL),
           );
         },
       );

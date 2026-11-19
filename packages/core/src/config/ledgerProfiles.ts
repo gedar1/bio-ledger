@@ -74,21 +74,6 @@ export const ledgerClientProfile: ProfileConfig = {
       done: "Estas son tus categorías de gasto actuales.",
     },
     {
-      id: "gasto-por-categoria-mes",
-      description: "Gasto del cliente por categoría en el mes actual",
-      requires: [],
-      setup: [],
-      steps: [
-        {
-          cell: LEDGER_CLIENT_CELL,
-          tool: "get_my_month_category_totals",
-          args: {},
-        },
-      ],
-      respond: "tool",
-      done: "Este es tu gasto por categoría del mes.",
-    },
-    {
       id: "gasto-por-categoria-periodo",
       description:
         "Gasto del cliente por categoría en un mes o trimestre indicado",
@@ -108,7 +93,7 @@ export const ledgerClientProfile: ProfileConfig = {
         },
       ],
       respond: "tool",
-      done: "Este es tu gasto por categoría del periodo.",
+      done: "Te muestro el detalle por categoría en la tabla.",
     },
     {
       id: "gasto-mas-caro",

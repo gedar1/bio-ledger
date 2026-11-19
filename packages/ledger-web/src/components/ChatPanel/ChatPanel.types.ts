@@ -1,6 +1,17 @@
 export interface ChatPanelProps {
   /** Token del cliente; cada mensaje se envía con su Authorization. */
   token: string;
+  /** Recibe la vista de datos cuando la respuesta la trae. */
+  onView?: (view: ChatView) => void;
+}
+
+/** Tabla que el backend envía junto a la respuesta. Los importes llegan ya formateados. */
+export interface ChatView {
+  type: "table";
+  title: string;
+  columns: string[];
+  rows: string[][];
+  total?: string;
 }
 
 export type ChatRole = "user" | "assistant";

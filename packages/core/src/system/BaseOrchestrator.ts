@@ -9,6 +9,7 @@ import {
   MutationError,
 } from "../errors.js";
 import { deduplicateTools, checkExecutionSafety } from "../atoms/index.js";
+import { extractChatView, type ChatView } from "../atoms/chatView.js";
 import type { ILogger } from "../config/ILogger.js";
 import type { IOrchestrator } from "./interfaces/IOrchestrator.js";
 import type { IStimulus } from "./interfaces/IStimulus.js";
@@ -76,6 +77,8 @@ export abstract class BaseOrchestrator implements IOrchestrator {
 
   /** Input del usuario de la sesión actual — usado por el guardrail de ejecución. */
   protected _currentUserInput: string = "";
+  /** Última vista de datos devuelta por una herramienta. Se mantiene hasta que llegue otra. */
+  protected _lastView: ChatView | null = null;
 
   constructor(sessionId?: string);
   constructor(options?: OrchestratorOptions);
@@ -220,6 +223,11 @@ export abstract class BaseOrchestrator implements IOrchestrator {
    * Si es stimulate_differentiation, difunde la mutación.
    * Registra automáticamente cada paso exitoso para la Memoria Refleja.
    */
+  /** Vista de datos más reciente de la sesión, o null si ninguna herramienta devolvió una. */
+  public currentView(): ChatView | null {
+    return this._lastView;
+  }
+
   public async executeAction(name: string, args: any): Promise<string> {
     this.log.info("Ejecutando acción", { tool: name });
 
@@ -280,6 +288,8 @@ export abstract class BaseOrchestrator implements IOrchestrator {
             () => org.callTool(name, args),
             { tool: name },
           );
+          const view = extractChatView(result);
+          if (view) this._lastView = view;
           this.reflexExecutor.recordStep(
             { action: name, paramKeys: Object.keys(args || {}) },
             args || {},

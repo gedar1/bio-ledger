@@ -137,12 +137,12 @@ export function setupDashboardRoutes(
     if (!body?.message) return { error: "message requerido" };
     const tenantId = access.tenantId;
     try {
-      const response = await tenantManager.chat(
+      const result = await tenantManager.chatWithView(
         tenantId,
         body.message,
         chatProfileFor(body || {}, tenantAuthService),
       );
-      return { tenantId, response };
+      return { tenantId, response: result.text, view: result.view };
     } catch (error: any) {
       return { tenantId, error: error.message };
     }

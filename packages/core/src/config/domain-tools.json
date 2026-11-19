@@ -5,7 +5,6 @@
   "list_pending_expenses": "Lista los gastos pendientes de revisión del cliente seleccionado.",
   "get_client_statement": "Estado de cuenta del cliente seleccionado para un periodo AAAA-MM o AAAA-Tn, con deducible y sin soporte.",
   "get_my_month_statement": "Estado de cuenta del cliente del mes actual, sin periodo. Solo para preguntas del mes en curso; para otro mes o trimestre usa get_my_statement.",
-  "get_my_month_category_totals": "Solo para el mes actual, sin periodo: cuánto gastó el cliente por categoría (aprobado y pendiente), de mayor a menor. No la uses si la pregunta nombra un mes (marzo, abril, etc.) o un trimestre: en ese caso usa get_my_category_totals con ese periodo.",
-  "get_my_category_totals": "Cuánto gastó el cliente por categoría (aprobado y pendiente) en un mes o trimestre indicado (AAAA-MM o AAAA-Tn), de mayor a menor. Úsala cuando pida el desglose por categoría de otro mes o trimestre. Requiere periodo. Es completa por sí sola: no la combines con get_my_statement.",
+  "get_my_category_totals": "Cuánto gastó el cliente por categoría (aprobado y pendiente) en un mes o trimestre (AAAA-MM o AAAA-Tn), de mayor a menor. Úsala también para el mes en curso, que es un periodo AAAA-MM. Es completa por sí sola: no la combines con get_my_statement.",
   "get_my_largest_expense": "Gasto de mayor importe del cliente en un mes o trimestre (aprobado y pendiente). Úsala cuando pregunte cuál fue su gasto más caro. Requiere periodo. No sirve para la lista de gastos ni para totales."
 }
