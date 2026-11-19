@@ -497,6 +497,35 @@ describe("vista de tabla de gasto por categoría", () => {
   });
 });
 
+describe("vista del estado de cuenta del mes", () => {
+  it("la herramienta del estado del mes devuelve una card con aprobados, pendientes y anulados", async () => {
+    const molecule = new ExpenseMolecule(join(tmpdir(), "card-" + Date.now() + ".db"));
+    await molecule.initialize();
+    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_CLIENT_CELL)!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(server as never, {
+      tenantDbPath: "unused",
+      getResource: () => molecule,
+      trackResource: () => undefined,
+    } as never);
+    const res = (await handlers["get_my_month_statement"]({})) as {
+      structuredContent?: { view?: { type: string; items: { label: string }[] } };
+    };
+    await molecule.dispose();
+
+    expect(res.structuredContent?.view?.type).toBe("card");
+    expect(res.structuredContent?.view?.items.map((i) => i.label)).toEqual(["Aprobados", "Pendientes", "Anulados"]);
+  });
+});
+
+describe("tipo de vista declarado por las cadenas", () => {
+  it("la cadena de categorías declara tabla y la del mes declara card", () => {
+    const byId = (id: string) => ledgerClientProfile.chains?.find((c) => c.id === id);
+    expect(byId("gasto-por-categoria-periodo")?.view).toBe("table");
+    expect(byId("estado-de-cuenta-mes")?.view).toBe("card");
+  });
+});
+
 describe("texto de respuesta de una cadena", () => {
   it("toma el texto del contenido MCP", () => {
     expect(extractToolText({ content: [{ type: "text", text: "Hola" }] })).toBe(

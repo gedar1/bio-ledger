@@ -6,13 +6,19 @@ export interface ChatPanelProps {
 }
 
 /** Tabla que el backend envía junto a la respuesta. Los importes llegan ya formateados. */
-export interface ChatView {
-  type: "table";
-  title: string;
-  columns: string[];
-  rows: string[][];
-  total?: string;
-}
+export type ChatView =
+  | {
+      type: "table";
+      title: string;
+      columns: string[];
+      rows: string[][];
+      total?: string;
+    }
+  | {
+      type: "card";
+      title: string;
+      items: { label: string; value: string }[];
+    };
 
 export type ChatRole = "user" | "assistant";
 

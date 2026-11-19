@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractChatView } from "../../src/atoms/chatView.js";
+import { extractChatView, viewFitsDeclaration } from "../../src/atoms/chatView.js";
 
 const view = {
   type: "table" as const,
@@ -9,7 +9,22 @@ const view = {
   total: "€ 145,00",
 };
 
+const card = { type: "card" as const, title: "Estado de cuenta 2026-11", items: [{ label: "Aprobados", value: "€ 0,00" }] };
+
 describe("vista de datos del chat", () => {
+  it("acepta una card con pares etiqueta-valor", () => {
+    expect(extractChatView({ structuredContent: { view: card } })).toEqual(card);
+  });
+
+  it("una vista sin declarar cualquier tipo", () => {
+    expect(viewFitsDeclaration(card)).toBe(true);
+  });
+
+  it("una vista solo encaja con el tipo que declara la cadena", () => {
+    expect(viewFitsDeclaration(card, "card")).toBe(true);
+    expect(viewFitsDeclaration(card, "table")).toBe(false);
+  });
+
   it("saca la vista de un resultado de herramienta que la trae", () => {
     expect(extractChatView({ content: [], structuredContent: { view } })).toEqual(view);
   });

@@ -38,6 +38,7 @@ export const ledgerClientProfile: ProfileConfig = {
         { cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} },
       ],
       respond: "tool",
+      view: "card",
       done: "Este es tu estado de cuenta del mes.",
     },
     {
@@ -93,6 +94,7 @@ export const ledgerClientProfile: ProfileConfig = {
         },
       ],
       respond: "tool",
+      view: "table",
       done: "Te muestro el detalle por categoría en la tabla.",
     },
     {

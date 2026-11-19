@@ -258,16 +258,39 @@ export const ledgerRegistrations: Registration[] = [
           if (!period)
             return textResult("No se pudo determinar el mes actual.");
           const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
-          return textResult(
-            formatStatement(
-              buildStatement(
-                period,
-                molecule.listExpenses(),
-                molecule.listCategories(),
-              ),
-              false,
-            ),
+          const statement = buildStatement(
+            period,
+            molecule.listExpenses(),
+            molecule.listCategories(),
           );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: formatStatement(statement, false),
+              },
+            ],
+            structuredContent: {
+              view: {
+                type: "card",
+                title: `Estado de cuenta ${statement.periodo}`,
+                items: [
+                  {
+                    label: "Aprobados",
+                    value: formatCents(statement.aprobados.total_cents),
+                  },
+                  {
+                    label: "Pendientes",
+                    value: formatCents(statement.pendientes.total_cents),
+                  },
+                  {
+                    label: "Anulados",
+                    value: formatCents(statement.anulados.total_cents),
+                  },
+                ],
+              },
+            },
+          };
         },
       );
 
