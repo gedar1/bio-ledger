@@ -3,7 +3,7 @@ import { loadApplicationRegistry } from "./mergeRegistry.js";
 import { ToolExecutionError } from "../errors.js";
 import { ExampleMolecule } from "../molecules/ExampleMolecule.js";
 import { domainProfile } from "./domain-profile.js";
-import { ledgerRegistrations } from "./ledgerComposition.js";
+import { ledgerRegistrations } from "../domain/ledger/ledgerComposition.js";
 import type {
   CellComposition,
   CellRuntimeContext,
