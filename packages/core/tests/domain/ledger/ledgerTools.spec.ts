@@ -306,20 +306,11 @@ describe("cadena de categorías del cliente", () => {
     expect(chain?.respond).toBe("tool");
   });
 
-  it("el perfil del cliente declara la cadena de gasto por categoría del mes sin datos", () => {
+  it("ya no hay cadena separada para el mes: el mes actual pasa por la cadena de periodo", () => {
     const chain = ledgerClientProfile.chains?.find(
       (c) => c.id === "gasto-por-categoria-mes",
     );
-    expect(chain).toBeDefined();
-    expect(chain?.requires).toEqual([]);
-    expect(chain?.steps).toEqual([
-      {
-        cell: LEDGER_CLIENT_CELL,
-        tool: "get_my_month_category_totals",
-        args: {},
-      },
-    ]);
-    expect(chain?.respond).toBe("tool");
+    expect(chain).toBeUndefined();
   });
 
   it("el perfil del cliente declara la cadena de gasto por categoría con un periodo", () => {
@@ -442,6 +433,67 @@ describe("gasto más caro del cliente", () => {
       },
     ]);
     expect(chain?.respond).toBe("tool");
+  });
+});
+
+describe("vista de tabla de gasto por categoría", () => {
+  let dir: string;
+  let molecule: ExpenseMolecule;
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), "ledger-vista-"));
+    molecule = new ExpenseMolecule(join(dir, "cliente.db"));
+    await molecule.initialize();
+    const categoryId = molecule.listCategories()[0].id;
+    molecule.createExpense(
+      {
+        fecha: "2025-03-10",
+        importe_cents: 12100,
+        tasa_btw: 21,
+        concepto: "Papel",
+        categoria_id: categoryId,
+        con_soporte: true,
+      },
+      "CLIENT",
+    );
+  });
+
+  afterEach(async () => {
+    await molecule.dispose();
+    rmSync(dir, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
+  });
+
+  it("la herramienta devuelve la tabla con importes ya formateados y el total", async () => {
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: join(dir, "cliente.db"),
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
+    const res = (await handlers["get_my_category_totals"]({
+      periodo: "2025-03",
+    })) as {
+      structuredContent?: {
+        view?: { columns: string[]; rows: string[][]; total?: string };
+      };
+    };
+    const view = res.structuredContent?.view;
+
+    expect(view?.columns).toEqual(["Categoría", "Importe", "Gastos"]);
+    expect(view?.rows[0][1]).toContain("121,00");
+    expect(view?.rows[0][2]).toBe("1");
+    expect(view?.total).toContain("121,00");
   });
 });
 

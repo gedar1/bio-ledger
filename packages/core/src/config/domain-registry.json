@@ -21,7 +21,6 @@
         "get_my_statement",
         "list_my_categories",
         "get_my_month_statement",
-        "get_my_month_category_totals",
         "get_my_category_totals",
         "get_my_largest_expense"
       ]

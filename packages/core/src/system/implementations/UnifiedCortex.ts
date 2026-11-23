@@ -549,8 +549,12 @@ export class UnifiedCortex extends BaseOrchestrator {
       },
     };
     try {
+      const viewBefore = this._lastView;
       const output = await runChain(chain, values, port);
+      // Si la herramienta de la cadena dejó una tabla nueva, la respuesta corta apunta a ella.
+      const producedView = this._lastView !== viewBefore;
       if (chain.respond === "tool") {
+        if (producedView) return chain.done;
         return extractToolText(output) ?? chain.done;
       }
       return chain.done;

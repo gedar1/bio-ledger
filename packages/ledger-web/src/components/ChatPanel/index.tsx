@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { apiPost } from "../../api";
-import type { ChatMessage, ChatPanelProps } from "./ChatPanel.types";
+import type { ChatMessage, ChatPanelProps, ChatView } from "./ChatPanel.types";
 
 /**
  * Chat del cliente con el asistente del producto. Adaptado de ExecutionChat del dashboard:
  * mismo envío a POST /api/chat, mismo bloqueo mientras responde, reintento tras error,
  * desplazamiento automático y cancelación si la pantalla se desmonta.
  */
-export const ChatPanel: React.FC<ChatPanelProps> = ({ token }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -32,8 +32,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token }) => {
   async function send(text: string, userMessageId: string) {
     setBusy(true);
     try {
-      const data = await apiPost<{ response: string }>("chat", { message: text }, token);
+      const data = await apiPost<{ response: string; view?: ChatView | null }>("chat", { message: text }, token);
       if (cancelledRef.current) return;
+      if (data.view) onView?.(data.view);
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: "assistant", text: data.response },
