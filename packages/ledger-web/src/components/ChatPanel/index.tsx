@@ -74,14 +74,14 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
   }
 
   return (
-    <section className="relative flex h-full flex-col gap-6">
+    <section className="relative flex h-full min-h-0 flex-col gap-6">
       <img
         src={BloubAttentif}
         alt=""
         aria-hidden="true"
         className="pointer-events-none absolute bottom-4 right-4 h-12 w-12 -scale-x-100"
       />
-      <div className="flex flex-1 flex-col overflow-y-auto gap-3 rounded-lg border border-hairline-soft p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-hairline-soft p-6">
         {messages.length === 0 && (
           <p className="text-sm text-steel">{t("chat.empty")}</p>
         )}

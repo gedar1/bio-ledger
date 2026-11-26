@@ -15,7 +15,7 @@ export const ChatPage = ({ token }: Readonly<{ token: string }>) => {
   return (
     <div className="flex flex-col gap-6">
       <h2 className="font-serif text-3xl">{t("chat.title")}</h2>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:h-[70vh] lg:grid-cols-2">
         <ChatPanel token={token} onView={setView} />
         <ViewPanel view={view} />
       </div>
