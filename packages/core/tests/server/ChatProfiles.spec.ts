@@ -21,8 +21,8 @@ describe("sesiones por tenant y perfil", () => {
 
   it("el cliente y el contador de un mismo tenant tienen sesiones y historiales separados", async () => {
     vi.spyOn(UnifiedCortex.prototype, "init").mockResolvedValue(undefined);
-    registerDomainProfile(LEDGER_CLIENT_PROFILE, { allowedCells: ["memory"], agentFile: "config/domain-agent.md" });
-    registerDomainProfile(LEDGER_ACCOUNTANT_PROFILE, { allowedCells: ["memory"], agentFile: "config/domain-agent.md" });
+    registerDomainProfile(LEDGER_CLIENT_PROFILE, { allowedCells: ["memory"], agentFile: "config/ledger-agent.md" });
+    registerDomainProfile(LEDGER_ACCOUNTANT_PROFILE, { allowedCells: ["memory"], agentFile: "config/ledger-agent.md" });
 
     const manager = new TenantManager({ maxTenants: 10 });
     const cliente = await manager.getTenant("cliente-x", LEDGER_CLIENT_PROFILE);

@@ -72,3 +72,13 @@ export function extractUrl(text: string): string | null {
     return null;
   }
 }
+
+export function resolveText(
+  template: string,
+  values: Readonly<Record<string, string>>,
+): string {
+  return template.replace(
+    /\$requires\.([a-zA-Z0-9_-]+)/g,
+    (_, name: string) => values[name] ?? `$requires.${name}`,
+  );
+}

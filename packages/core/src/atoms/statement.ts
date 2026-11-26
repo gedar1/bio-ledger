@@ -231,7 +231,10 @@ export function categoryTotals(
 }
 
 /** Gasto con los campos que necesita el cálculo del más caro. */
-export type LargestCandidate = StatementExpense & { id: number; concepto: string };
+export type LargestCandidate = StatementExpense & {
+  id: number;
+  concepto: string;
+};
 
 /**
  * Gasto de mayor importe del periodo, entre aprobados y pendientes. Rechazados y anulados
@@ -254,4 +257,9 @@ export function largestExpense<T extends LargestCandidate>(
     }
   }
   return best;
+}
+
+/** Código del mes actual en formato AAAA-MM, según la fecha de `now`. */
+export function currentMonthCode(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }

@@ -1,5 +1,5 @@
 {
-  "list_my_expenses": "Lista los gastos registrados del cliente, uno por línea, para revisarlos. No sirve para totales ni para el estado de cuenta: para cuánto gastó en un mes usa get_my_statement.",
+  "list_my_expenses": "Lista los gastos registrados del cliente, Si no se provee estado mostrar todos, uno por línea, para revisarlos. No sirve para totales ni para el estado de cuenta: para cuánto gastó en un mes usa get_my_statement.",
   "get_my_statement": "Estado de cuenta del cliente: cuánto gastó, y cuánto tiene aprobado, pendiente y anulado en un mes o trimestre (AAAA-MM o AAAA-Tn). Es la herramienta para totales de un periodo; no hace falta combinarla con list_my_expenses. Si la pregunta es por categorías, usa get_my_category_totals sola, sin esta.",
   "list_my_categories": "Lista las categorías de gasto del cliente.",
   "list_pending_expenses": "Lista los gastos pendientes de revisión del cliente seleccionado.",

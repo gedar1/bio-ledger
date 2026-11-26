@@ -43,6 +43,11 @@ export const ChainDefinitionSchema = z.object({
   requires: z.array(ChainRequirementSchema).max(1).default([]),
   steps: z.array(ChainStepSchema).min(1),
   setup: z.array(z.string().min(1)).default([]),
+  /**
+   * Tipo de vista que la cadena declara. Si la herramienta produce otro tipo, la vista se descarta.
+   * Sin declarar, cualquier vista de herramienta sirve.
+   */
+  view: z.enum(["table", "card"]).optional(),
   /** Respuesta al usuario cuando la cadena termina bien. */
   done: z.string().min(1).default("Cadena completada."),
 });

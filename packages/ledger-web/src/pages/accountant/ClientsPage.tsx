@@ -2,24 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { apiPost, ApiRequestError } from "../../api";
+import type { ClientRow, ClientsData, CreatedClient } from "@/types";
 
-interface ClientRow {
-  tenant_id: string;
-  display_name: string;
-  status: string;
-  must_change_password: boolean;
-}
-
-interface ClientsData {
-  clients: ClientRow[];
-}
-
-interface CreatedClient {
-  tenant_id: string;
-  temp_password: string;
-}
-
-export function ClientsPage({ token }: { token: string }) {
+export function ClientsPage({ token }: Readonly<{ token: string }>) {
   const { t } = useTranslation();
   const [clients, setClients] = useState<ClientRow[] | null>(null);
   const [tenantId, setTenantId] = useState("");
@@ -45,7 +30,11 @@ export function ClientsPage({ token }: { token: string }) {
   async function resetPassword(clientId: string) {
     setError(null);
     try {
-      const data = await apiPost<CreatedClient>("accountant/tenants/reset-password", { tenant_id: clientId }, token);
+      const data = await apiPost<CreatedClient>(
+        "accountant/tenants/reset-password",
+        { tenant_id: clientId },
+        token,
+      );
       setCreated(data);
       await load();
     } catch {
@@ -67,7 +56,11 @@ export function ClientsPage({ token }: { token: string }) {
       setDisplayName("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiRequestError && err.info.status === 409 ? t("clients.duplicate") : t("errors.generic"));
+      setError(
+        err instanceof ApiRequestError && err.info.status === 409
+          ? t("clients.duplicate")
+          : t("errors.generic"),
+      );
     }
   }
 
@@ -75,7 +68,10 @@ export function ClientsPage({ token }: { token: string }) {
     <section className="flex flex-col gap-8">
       <h2 className="font-serif text-3xl">{t("clients.title")}</h2>
 
-      <form onSubmit={create} className="grid gap-4 rounded-lg border border-hairline-soft p-6 md:grid-cols-[1fr_1fr_auto]">
+      <form
+        onSubmit={create}
+        className="grid gap-4 rounded-lg border border-hairline-soft p-6 md:grid-cols-[1fr_1fr_auto]"
+      >
         <label className="flex flex-col gap-1 text-sm text-slate">
           {t("clients.clientId")}
           <input
@@ -95,7 +91,10 @@ export function ClientsPage({ token }: { token: string }) {
             className="h-11 rounded-lg border border-hairline-strong px-3 text-ink focus:border-2 focus:border-primary focus:outline-none"
           />
         </label>
-        <button type="submit" className="h-11 self-end rounded-lg bg-primary px-5 text-sm font-medium text-on-primary">
+        <button
+          type="submit"
+          className="h-11 self-end rounded-lg bg-primary px-5 text-sm font-medium text-on-primary"
+        >
           {t("clients.create")}
         </button>
       </form>
@@ -117,8 +116,12 @@ export function ClientsPage({ token }: { token: string }) {
           <table className="w-full text-left text-sm">
             <thead className="bg-surface text-steel">
               <tr>
-                <th className="px-4 py-3 font-medium">{t("clients.clientId")}</th>
-                <th className="px-4 py-3 font-medium">{t("clients.displayName")}</th>
+                <th className="px-4 py-3 font-medium">
+                  {t("clients.clientId")}
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  {t("clients.displayName")}
+                </th>
                 <th className="px-4 py-3 font-medium">{t("clients.active")}</th>
                 <th className="px-4 py-3 font-medium"></th>
               </tr>
@@ -127,13 +130,18 @@ export function ClientsPage({ token }: { token: string }) {
               {clients.map((c) => (
                 <tr key={c.tenant_id} className="border-t border-hairline-soft">
                   <td className="px-4 py-3 font-mono">
-                    <Link to={`/contador/clientes/${c.tenant_id}`} className="text-primary hover:underline">
+                    <Link
+                      to={`/contador/clientes/${c.tenant_id}`}
+                      className="text-primary hover:underline"
+                    >
                       {c.tenant_id}
                     </Link>
                   </td>
                   <td className="px-4 py-3">{c.display_name}</td>
                   <td className="px-4 py-3 text-steel">
-                    {c.must_change_password ? t("clients.mustChange") : t("clients.active")}
+                    {c.must_change_password
+                      ? t("clients.mustChange")
+                      : t("clients.active")}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

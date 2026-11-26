@@ -3,13 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExpenseMolecule } from "../../../src/molecules/ExpenseMolecule.js";
-import {
-  ledgerRegistrations,
-  LEDGER_CLIENT_CELL,
-  LEDGER_ACCOUNTANT_CELL,
-} from "../../../src/domain/ledger/ledgerComposition.js";
+import { ledgerRegistrations } from "../../../src/cells/ledgerCells.js";
+import { LEDGER_ACCOUNTANT_CELL, LEDGER_CLIENT_CELL } from "../../../src/config/ledgerCellTypes.js";
 import { extractToolText } from "../../../src/atoms/chainResponse.js";
-import { currentMonthCode } from "../../../src/domain/ledger/ledgerComposition.js";
+import { currentMonthCode } from "../../../src/atoms/statement.js";
 import { ledgerClientProfile } from "../../../src/config/ledgerProfiles.js";
 
 type Handler = (
@@ -95,7 +92,8 @@ describe("herramientas del chat contable", () => {
     const res = await handlers["list_my_expenses"]({});
     const text = res.content[0].text;
 
-    expect(text).toContain("2 gasto(s):");
+    expect(text).toContain("Gastos  (aprobados y pendientes), en EUR:");
+    expect(text).toMatch(/Total: .*130,00/);
     expect(text).toContain("Papel");
     expect(text).toContain("121,00");
     expect(text).toContain("aprobado");
@@ -105,7 +103,7 @@ describe("herramientas del chat contable", () => {
   it("el filtro por estado devuelve solo ese estado", async () => {
     const handlers = registerCell(LEDGER_CLIENT_CELL);
     const res = await handlers["list_my_expenses"]({ estado: "APROBADO" });
-    expect(res.content[0].text).toContain("1 gasto(s):");
+    expect(res.content[0].text).toContain("Papel");
     expect(res.content[0].text).not.toContain("Taxi");
   });
 
@@ -485,15 +483,46 @@ describe("vista de tabla de gasto por categoría", () => {
       periodo: "2025-03",
     })) as {
       structuredContent?: {
-        view?: { columns: string[]; rows: string[][]; total?: string };
+        view?: { columns: { key: string; format: string }[]; rows: (string | number)[][]; total?: number };
       };
     };
     const view = res.structuredContent?.view;
 
-    expect(view?.columns).toEqual(["Categoría", "Importe", "Gastos"]);
-    expect(view?.rows[0][1]).toContain("121,00");
-    expect(view?.rows[0][2]).toBe("1");
-    expect(view?.total).toContain("121,00");
+    expect(view?.columns.map((c) => c.key)).toEqual(["category", "amount", "count"]);
+    expect(view?.columns[1].format).toBe("cents");
+    expect(view?.rows[0][1]).toBe(12100);
+    expect(view?.rows[0][2]).toBe(1);
+    expect(view?.total).toBe(12100);
+  });
+});
+
+describe("vista del estado de cuenta del mes", () => {
+  it("la herramienta del estado del mes devuelve una card con aprobados, pendientes y anulados", async () => {
+    const molecule = new ExpenseMolecule(join(tmpdir(), "card-" + Date.now() + ".db"));
+    await molecule.initialize();
+    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_CLIENT_CELL)!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(server as never, {
+      tenantDbPath: "unused",
+      getResource: () => molecule,
+      trackResource: () => undefined,
+    } as never);
+    const res = (await handlers["get_my_month_statement"]({})) as {
+      structuredContent?: { view?: { type: string; items: { key: string; format: string; value: number }[] } };
+    };
+    await molecule.dispose();
+
+    expect(res.structuredContent?.view?.type).toBe("card");
+    expect(res.structuredContent?.view?.items.map((i) => i.key)).toEqual(["approved", "pending", "cancelled"]);
+    expect(res.structuredContent?.view?.items.every((i) => i.format === "cents")).toBe(true);
+  });
+});
+
+describe("tipo de vista declarado por las cadenas", () => {
+  it("la cadena de categorías declara tabla y la del mes declara card", () => {
+    const byId = (id: string) => ledgerClientProfile.chains?.find((c) => c.id === id);
+    expect(byId("gasto-por-categoria-periodo")?.view).toBe("table");
+    expect(byId("estado-de-cuenta-mes")?.view).toBe("card");
   });
 });
 

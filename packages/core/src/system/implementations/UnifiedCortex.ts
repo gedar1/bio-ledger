@@ -44,6 +44,7 @@ import {
   PENDING_DISCARDED_WARNING,
 } from "../../atoms/chainExtraction.js";
 import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
+import { viewFitsDeclaration } from "../../atoms/chatView.js";
 import {
   EXTRACTORS,
   chainSequence,
@@ -551,7 +552,23 @@ export class UnifiedCortex extends BaseOrchestrator {
     try {
       const viewBefore = this._lastView;
       const output = await runChain(chain, values, port);
-      // Si la herramienta de la cadena dejó una tabla nueva, la respuesta corta apunta a ella.
+      const produced = this._lastView;
+      if (
+        produced !== viewBefore &&
+        produced &&
+        !viewFitsDeclaration(produced, chain.view)
+      ) {
+        this.log.warn(
+          "Vista descartada: su tipo no coincide con el declarado por la cadena",
+          {
+            chain: chain.id,
+            declared: chain.view,
+            produced: produced.type,
+          },
+        );
+        this._lastView = viewBefore;
+      }
+      // Si la cadena dejó una vista nueva y aceptada, la respuesta corta apunta a ella.
       const producedView = this._lastView !== viewBefore;
       if (chain.respond === "tool") {
         if (producedView) return chain.done;

@@ -34,7 +34,6 @@ const REQUIRED_FILES = [
   "packages/core/src/config/registry.json",
   "packages/core/src/config/domain-registry.json",
   "packages/core/src/config/domain-profile.ts",
-  "packages/core/src/config/domain-agent.md",
   "packages/core/src/config/profileRegistry.ts",
   "packages/core/src/molecules/ExampleMolecule.ts",
   "packages/core/src/config/applicationComposition.ts",
