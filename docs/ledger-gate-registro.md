@@ -26,7 +26,9 @@ Si alguna respuesta es "no", la pregunta se queda en el modelo. Anótalo y sigue
 
 ## Paso 1: la herramienta
 
-Las herramientas viven en las células del producto, en `domain/ledger/ledgerComposition.ts`.
+Las células del producto están en `cells/ledgerCells.ts`. Sus registros se agregan al array `registrations` de `config/applicationComposition.ts`.
+
+El handler solo valida la entrada, pide datos a la molécula o a los átomos, y devuelve el resultado. El formato del texto va en `atoms/ledgerText.ts` y las vistas en `atoms/ledgerViews.ts`.
 
 1. Registra la herramienta en la célula correspondiente con `server.registerTool(nombre, { description, inputSchema }, handler)`.
 2. Usa esquemas con tipos concretos: `z.enum`, `z.string()` y `z.number()`. **No uses `pattern`, `z.any()` ni `z.record(z.any())`**: el proveedor del modelo los rechaza. Valida el formato dentro del handler.

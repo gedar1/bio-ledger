@@ -6,7 +6,7 @@ import {
 import {
   LEDGER_ACCOUNTANT_CELL,
   LEDGER_CLIENT_CELL,
-} from "../domain/ledger/ledgerComposition.js";
+} from "./ledgerCellTypes.js";
 import {
   LEDGER_ACCOUNTANT_PROFILE,
   LEDGER_CLIENT_PROFILE,

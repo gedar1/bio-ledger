@@ -3,13 +3,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExpenseMolecule } from "../../../src/molecules/ExpenseMolecule.js";
-import {
-  ledgerRegistrations,
-  LEDGER_CLIENT_CELL,
-  LEDGER_ACCOUNTANT_CELL,
-} from "../../../src/domain/ledger/ledgerComposition.js";
+import { ledgerRegistrations } from "../../../src/cells/ledgerCells.js";
+import { LEDGER_ACCOUNTANT_CELL, LEDGER_CLIENT_CELL } from "../../../src/config/ledgerCellTypes.js";
 import { extractToolText } from "../../../src/atoms/chainResponse.js";
-import { currentMonthCode } from "../../../src/domain/ledger/ledgerComposition.js";
+import { currentMonthCode } from "../../../src/atoms/statement.js";
 import { ledgerClientProfile } from "../../../src/config/ledgerProfiles.js";
 
 type Handler = (
@@ -95,7 +92,8 @@ describe("herramientas del chat contable", () => {
     const res = await handlers["list_my_expenses"]({});
     const text = res.content[0].text;
 
-    expect(text).toContain("2 gasto(s):");
+    expect(text).toContain("Gastos  (aprobados y pendientes), en EUR:");
+    expect(text).toMatch(/Total: .*130,00/);
     expect(text).toContain("Papel");
     expect(text).toContain("121,00");
     expect(text).toContain("aprobado");
@@ -105,7 +103,7 @@ describe("herramientas del chat contable", () => {
   it("el filtro por estado devuelve solo ese estado", async () => {
     const handlers = registerCell(LEDGER_CLIENT_CELL);
     const res = await handlers["list_my_expenses"]({ estado: "APROBADO" });
-    expect(res.content[0].text).toContain("1 gasto(s):");
+    expect(res.content[0].text).toContain("Papel");
     expect(res.content[0].text).not.toContain("Taxi");
   });
 

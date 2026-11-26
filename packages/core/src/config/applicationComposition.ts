@@ -1,9 +1,6 @@
 import { loadApplicationRegistry } from "./mergeRegistry.js";
-import {
-  LEDGER_ACCOUNTANT_CELL,
-  LEDGER_CLIENT_CELL,
-  ledgerRegistrations,
-} from "../domain/ledger/ledgerComposition.js";
+import { LEDGER_ACCOUNTANT_CELL, LEDGER_CLIENT_CELL } from "./ledgerCellTypes.js";
+import { ledgerRegistrations } from "../cells/ledgerCells.js";
 import type { CellComposition } from "../cells/CellComposition.js";
 
 const applicationRegistry = loadApplicationRegistry();
