@@ -4,8 +4,7 @@ import { apiPost } from "../../api";
 import type { ChatMessage, ChatPanelProps, ChatView } from "@/types";
 import { Alert } from "@/shared/components";
 
-// import { BloubAttentif } from "./spinners";
-// import Icon from "@/assets/svg_spiners/Icon";
+import { BloubAttentif } from "./spinners";
 
 /**
  * Chat del cliente con el asistente del producto. Adaptado de ExecutionChat del dashboard:
@@ -20,7 +19,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
   const cancelledRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const failedMessage = messages.find((m) => m.failed);
-  // const [open, setOpen] = useState(false);
 
   // Al salir de la pantalla no se aplican respuestas que lleguen después.
   useEffect(() => {
@@ -78,17 +76,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
   }
 
   return (
-    <section className="flex h-full min-h-0 flex-col gap-6">
-      {/* <button
-        className="absolute bottom-4 right-4 -scale-x-100"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="dot">
-          <Icon width={48} height={48}>
-            <BloubAttentif />
-          </Icon>
-        </span>
-      </button> */}
+    <section className="relative flex h-full min-h-0 flex-col gap-6">
+      <img
+        src={BloubAttentif}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-4 right-4 h-12 w-12 -scale-x-100"
+      />
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-hairline-soft p-6">
         {messages.length === 0 && (
           <p className="text-sm text-steel">{t("chat.empty")}</p>

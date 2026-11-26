@@ -1,7 +1,7 @@
-import checkIcon from "@/assets/icons/check_check.svg";
-import scanIcon from "@/assets/icons/scan-search.svg";
-import trashIcon from "@/assets/icons/trash-2.svg";
-import bellIcon from "@/assets/icons/bell.svg";
+import circleCheckIcon from "@/assets/icons/circle-check.svg";
+import circleDashedCheckIcon from "@/assets/icons/circle-dashed-check.svg";
+import circleX from "@/assets/icons/circle-x.svg";
+import creditCardX from "@/assets/icons/credit-card-x.svg";
 
 /** Claves de columna e ítem que el backend manda, traducidas aquí. */
 export const COLUMN_LABEL: Record<string, string> = {
@@ -20,8 +20,8 @@ export const ITEM_LABEL: Record<string, string> = {
 
 /** Icono por estado de gasto. Se importan como módulo para que Vite los incluya en el build. */
 export const ICON_STATE: Record<string, string> = {
-  PENDIENTE: scanIcon,
-  APROBADO: checkIcon,
-  RECHAZADO: trashIcon,
-  ANULADO: bellIcon,
+  PENDIENTE: circleDashedCheckIcon,
+  APROBADO: circleCheckIcon,
+  RECHAZADO: circleX,
+  ANULADO: creditCardX,
 };
