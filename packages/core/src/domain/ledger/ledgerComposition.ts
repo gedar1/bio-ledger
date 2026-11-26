@@ -17,6 +17,7 @@ import type {
   CellComposition,
   CellRuntimeContext,
 } from "../../cells/CellComposition.js";
+import { ExpenseState } from "../../atoms/expenseRules.js";
 
 type Registration = NonNullable<CellComposition["registrations"]>[number];
 
@@ -135,14 +136,15 @@ function categoryTotalsResult(
   );
   const view: ChatView = {
     type: "table",
-    title: `Gasto por categoría, ${period.periodo}`,
-    columns: ["Categoría", "Importe", "Gastos"],
-    rows: totals.map((t) => [
-      t.nombre,
-      formatCents(t.total_cents),
-      String(t.cantidad),
-    ]),
-    total: formatCents(total),
+    titleKey: "chat.viewCategoryTitle",
+    params: { period: period.periodo },
+    columns: [
+      { key: "category", format: "text" },
+      { key: "amount", format: "cents" },
+      { key: "count", format: "count" },
+    ],
+    rows: totals.map((t) => [t.nombre, t.total_cents, t.cantidad]),
+    total,
   };
   return {
     content: [
@@ -150,6 +152,49 @@ function categoryTotalsResult(
         type: "text" as const,
         text: [
           `Gastos de ${period.periodo} por categoría (aprobados y pendientes), en EUR:`,
+          ...lineas,
+          `Total: ${formatCents(total)}`,
+        ].join("\n"),
+      },
+    ],
+    structuredContent: { view },
+  };
+}
+
+/** Desglose de lo gastado (aprobado más pendiente) por gasto. Formato fijo por código. */
+function expensesTotalsResult(
+  molecule: ExpenseMolecule,
+  categoryNames: Map<number, string>,
+  estado?: ExpenseState,
+) {
+  const totals = molecule.listExpenses(estado);
+
+  if (totals.length === 0) return textResult(`No hay gastos.`);
+  const total = totals.reduce((sum, t) => sum + t.importe_cents, 0);
+  const lineas = totals.map((t) =>
+    formatExpenseLine(t, categoryNames.get(t.categoria_id) ?? "Sin categoría"),
+  );
+
+  // (t) =>
+  //   `- ${t.nombre}: ${formatCents(t.total_cents)} (${t.cantidad} gasto(s))`,
+  const view: ChatView = {
+    type: "table",
+    titleKey: "chat.viewExpensesTotalTitle",
+    params: {},
+    columns: [
+      { key: "date", format: "text" },
+      { key: "state", format: "text" },
+      { key: "concept", format: "text" },
+      { key: "amount", format: "cents" },
+    ],
+    rows: totals.map((t) => [t.fecha, t.estado, t.concepto, t.importe_cents]),
+  };
+  return {
+    content: [
+      {
+        type: "text" as const,
+        text: [
+          `Gastos  (aprobados y pendientes), en EUR:`,
           ...lineas,
           `Total: ${formatCents(total)}`,
         ].join("\n"),
@@ -179,6 +224,14 @@ export const ledgerRegistrations: Registration[] = [
             .map((c) => [c.id, c.nombre]),
         );
 
+      /**
+       * ─── Expenses ──────────────────────────────────────────────────────────
+       * list_my_expenses Lista los gastos del cliente. Filtro opcional por estado.
+       * @param ESTADOS "PENDIENTE", "APROBADO", "RECHAZADO", "ANULADO" opcional
+       *
+       * get_my_largest_expense Gasto de mayor importe del cliente en un mes o trimestre (aprobado y pendiente).
+       * @param PERIODO Requiere periodo AAAA-MM o AAAA-Tn
+       */
       server.registerTool(
         "list_my_expenses",
         {
@@ -192,18 +245,58 @@ export const ledgerRegistrations: Registration[] = [
           },
         },
         async ({ estado }) => {
+          // const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
+          // const expenses = molecule.listExpenses(estado);
+          return expensesTotalsResult(
+            moleculeFor(context, LEDGER_CLIENT_CELL),
+            categoryNames(),
+            estado,
+          );
+          // return textResult(
+          //   formatExpenses(
+          //     expenses,
+          //     categoryNames(),
+          //     "No hay gastos registrados.",
+          //   ),
+          // );
+        },
+      );
+
+      server.registerTool(
+        "get_my_largest_expense",
+        {
+          description:
+            "Gasto de mayor importe del cliente en un mes o trimestre (aprobado y pendiente). Requiere periodo AAAA-MM o AAAA-Tn.",
+          inputSchema: { periodo: PERIODO },
+        },
+        async ({ periodo }) => {
+          const period = parsePeriod(periodo);
+          if (!period)
+            return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
           const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
-          const expenses = molecule.listExpenses(estado);
+          const categoryNames = new Map(
+            molecule.listCategories().map((c) => [c.id, c.nombre]),
+          );
+          const expense = largestExpense(period, molecule.listExpenses());
+          if (!expense)
+            return textResult(`No hay gastos en ${period.periodo}.`);
           return textResult(
-            formatExpenses(
-              expenses,
-              categoryNames(),
-              "No hay gastos registrados.",
-            ),
+            `Gasto más caro de ${period.periodo}:\n${formatExpenseLine(expense, categoryNames.get(expense.categoria_id) ?? "Sin categoría")}`,
           );
         },
       );
 
+      /**
+       * ─── Statement ──────────────────────────────────────────────────────────
+       * get_my_statement Estado de cuenta del cliente para un periodo. Sin columna de deducible.
+       * @param PERIODO Requiere periodo AAAA-MM o AAAA-Tn
+       *
+       * get_client_statement Estado de cuenta del cliente seleccionado para un periodo, con deducible y sin soporte.
+       * @param PERIODO Requiere periodo AAAA-MM o AAAA-Tn
+       *
+       * get_my_month_statement Estado de cuenta del mes actual del cliente, sin periodo. Úsala solo cuando la pregunta sea del mes en curso.
+       *
+       */
       server.registerTool(
         "get_my_statement",
         {
@@ -216,6 +309,66 @@ export const ledgerRegistrations: Registration[] = [
           if (!period)
             return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
           const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
+          const statement = buildStatement(
+            period,
+            molecule.listExpenses(),
+            molecule.listCategories(),
+          );
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: formatStatement(statement, false),
+              },
+            ],
+            structuredContent: {
+              view: {
+                type: "card",
+                titleKey: "chat.viewStatementTitle",
+                params: { period: statement.periodo },
+                items: [
+                  {
+                    key: "approved",
+                    format: "cents",
+                    value: statement.aprobados.total_cents,
+                  },
+                  {
+                    key: "pending",
+                    format: "cents",
+                    value: statement.pendientes.total_cents,
+                  },
+                  {
+                    key: "cancelled",
+                    format: "cents",
+                    value: statement.anulados.total_cents,
+                  },
+                  {
+                    key: "total",
+                    format: "cents",
+                    value:
+                      statement.aprobados.total_cents +
+                      statement.pendientes.total_cents +
+                      statement.anulados.total_cents,
+                  },
+                ],
+              },
+            },
+          };
+        },
+      );
+
+      server.registerTool(
+        "get_client_statement",
+        {
+          description:
+            "Estado de cuenta del cliente seleccionado para un periodo, con deducible y sin soporte.",
+          inputSchema: { periodo: PERIODO },
+        },
+        async ({ periodo }) => {
+          const period = parsePeriod(periodo);
+          if (!period)
+            return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
+          const molecule = moleculeFor(context, LEDGER_ACCOUNTANT_CELL);
           return textResult(
             formatStatement(
               buildStatement(
@@ -223,25 +376,8 @@ export const ledgerRegistrations: Registration[] = [
                 molecule.listExpenses(),
                 molecule.listCategories(),
               ),
-              false,
+              true,
             ),
-          );
-        },
-      );
-
-      server.registerTool(
-        "list_my_categories",
-        {
-          description:
-            "Lista las categorías de gasto disponibles para el cliente.",
-          inputSchema: {},
-        },
-        async () => {
-          const names = [...categoryNames().values()];
-          return textResult(
-            names.length === 0
-              ? "No hay categorías."
-              : names.map((n) => `- ${n}`).join("\n"),
           );
         },
       );
@@ -273,24 +409,54 @@ export const ledgerRegistrations: Registration[] = [
             structuredContent: {
               view: {
                 type: "card",
-                title: `Estado de cuenta ${statement.periodo}`,
+                titleKey: "chat.viewStatementTitle",
+                params: { period: statement.periodo },
                 items: [
                   {
-                    label: "Aprobados",
-                    value: formatCents(statement.aprobados.total_cents),
+                    key: "approved",
+                    format: "cents",
+                    value: statement.aprobados.total_cents,
                   },
                   {
-                    label: "Pendientes",
-                    value: formatCents(statement.pendientes.total_cents),
+                    key: "pending",
+                    format: "cents",
+                    value: statement.pendientes.total_cents,
                   },
                   {
-                    label: "Anulados",
-                    value: formatCents(statement.anulados.total_cents),
+                    key: "cancelled",
+                    format: "cents",
+                    value: statement.anulados.total_cents,
                   },
                 ],
               },
             },
           };
+        },
+      );
+
+      /**
+       * ─── Categories ──────────────────────────────────────────────────────────
+       * list_my_categories" Lista las categorías de gasto disponibles para el cliente.
+       * @param PERIODO Requiere periodo AAAA-MM o AAAA-Tn
+       *
+       * get_client_statement Estado de cuenta del cliente seleccionado para un periodo, con deducible y sin soporte.
+       * @param PERIODO Requiere periodo AAAA-MM o AAAA-Tn
+       */
+
+      server.registerTool(
+        "list_my_categories",
+        {
+          description:
+            "Lista las categorías de gasto disponibles para el cliente.",
+          inputSchema: {},
+        },
+        async () => {
+          const names = [...categoryNames().values()];
+          return textResult(
+            names.length === 0
+              ? "No hay categorías."
+              : names.map((n) => `- ${n}`).join("\n"),
+          );
         },
       );
 
@@ -308,30 +474,6 @@ export const ledgerRegistrations: Registration[] = [
           return categoryTotalsResult(
             period,
             moleculeFor(context, LEDGER_CLIENT_CELL),
-          );
-        },
-      );
-
-      server.registerTool(
-        "get_my_largest_expense",
-        {
-          description:
-            "Gasto de mayor importe del cliente en un mes o trimestre (aprobado y pendiente). Requiere periodo AAAA-MM o AAAA-Tn.",
-          inputSchema: { periodo: PERIODO },
-        },
-        async ({ periodo }) => {
-          const period = parsePeriod(periodo);
-          if (!period)
-            return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
-          const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
-          const categoryNames = new Map(
-            molecule.listCategories().map((c) => [c.id, c.nombre]),
-          );
-          const expense = largestExpense(period, molecule.listExpenses());
-          if (!expense)
-            return textResult(`No hay gastos en ${period.periodo}.`);
-          return textResult(
-            `Gasto más caro de ${period.periodo}:\n${formatExpenseLine(expense, categoryNames.get(expense.categoria_id) ?? "Sin categoría")}`,
           );
         },
       );
@@ -365,31 +507,6 @@ export const ledgerRegistrations: Registration[] = [
               molecule.listExpenses("PENDIENTE"),
               categoryNames,
               "No hay gastos pendientes.",
-            ),
-          );
-        },
-      );
-
-      server.registerTool(
-        "get_client_statement",
-        {
-          description:
-            "Estado de cuenta del cliente seleccionado para un periodo, con deducible y sin soporte.",
-          inputSchema: { periodo: PERIODO },
-        },
-        async ({ periodo }) => {
-          const period = parsePeriod(periodo);
-          if (!period)
-            return textResult("Periodo no válido. Usa AAAA-MM o AAAA-Tn.");
-          const molecule = moleculeFor(context, LEDGER_ACCOUNTANT_CELL);
-          return textResult(
-            formatStatement(
-              buildStatement(
-                period,
-                molecule.listExpenses(),
-                molecule.listCategories(),
-              ),
-              true,
             ),
           );
         },

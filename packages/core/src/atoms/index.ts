@@ -15,6 +15,7 @@ export type {
   LLMTool,
 } from "../system/providers/providerTypes.js";
 export { normalizeSequence } from "./sequence.js";
+export { resolveText } from "./chainExtraction.js";
 export { summarizeToolResult } from "./toolResultFormatter.js";
 export { getModuleDir, getProjectRoot } from "./paths.js";
 export { preCellRoute } from "./cellRouter.js";

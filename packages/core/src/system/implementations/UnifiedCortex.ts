@@ -553,12 +553,19 @@ export class UnifiedCortex extends BaseOrchestrator {
       const viewBefore = this._lastView;
       const output = await runChain(chain, values, port);
       const produced = this._lastView;
-      if (produced !== viewBefore && produced && !viewFitsDeclaration(produced, chain.view)) {
-        this.log.warn("Vista descartada: su tipo no coincide con el declarado por la cadena", {
-          chain: chain.id,
-          declared: chain.view,
-          produced: produced.type,
-        });
+      if (
+        produced !== viewBefore &&
+        produced &&
+        !viewFitsDeclaration(produced, chain.view)
+      ) {
+        this.log.warn(
+          "Vista descartada: su tipo no coincide con el declarado por la cadena",
+          {
+            chain: chain.id,
+            declared: chain.view,
+            produced: produced.type,
+          },
+        );
         this._lastView = viewBefore;
       }
       // Si la cadena dejó una vista nueva y aceptada, la respuesta corta apunta a ella.

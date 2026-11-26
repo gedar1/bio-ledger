@@ -1,34 +1,62 @@
 /**
  * Vista de datos para el front: se muestra junto al chat, fuera del texto de la respuesta.
- * Los importes llegan ya formateados desde el código de la herramienta.
  *
- * Tipos: "table" (filas y columnas) y "card" (pares etiqueta-valor).
+ * El backend manda claves, valores crudos y el formato de cada valor. No manda etiquetas ni
+ * importes formateados: el front traduce las claves y da formato, según el idioma de la interfaz.
+ *
+ * Formatos: "text" (texto tal cual), "cents" (importe en céntimos, entero) y "count" (entero).
  * Funciones puras. Lo usa el orquestador para leer la vista de un resultado de herramienta.
  */
 import { z } from "zod";
 
-export const CHAT_VIEW_TYPES = ["table", "card"] as const;
+export const CHAT_VIEW_TYPES = ["table", "card", "text", "alert"] as const;
 export type ChatViewType = (typeof CHAT_VIEW_TYPES)[number];
+
+export const VALUE_FORMATS = ["text", "cents", "count"] as const;
+export type ValueFormat = (typeof VALUE_FORMATS)[number];
+
+const FormatSchema = z.enum(VALUE_FORMATS);
+const CellSchema = z.union([z.string(), z.number()]);
 
 const TableViewSchema = z.object({
   type: z.literal("table"),
-  title: z.string().min(1),
-  columns: z.array(z.string()).min(1),
-  rows: z.array(z.array(z.string())),
-  total: z.string().optional(),
+  /** Clave de traducción del título, por ejemplo "chat.viewCategoryTitle". */
+  titleKey: z.string().min(1),
+  /** Valores que la clave de título necesita, por ejemplo { period: "2026-11" }. */
+  params: z.record(z.string(), CellSchema),
+  columns: z
+    .array(z.object({ key: z.string().min(1), format: FormatSchema }))
+    .min(1),
+  rows: z.array(z.array(CellSchema)),
+  /** Total en céntimos, si la tabla tiene una columna de importe. */
+  total: z.number().int().optional(),
 });
 
 const CardViewSchema = z.object({
   type: z.literal("card"),
-  title: z.string().min(1),
+  titleKey: z.string().min(1),
+  params: z.record(z.string(), CellSchema),
   items: z
-    .array(z.object({ label: z.string().min(1), value: z.string() }))
+    .array(
+      z.object({
+        key: z.string().min(1),
+        format: FormatSchema,
+        value: CellSchema,
+      }),
+    )
     .min(1),
+});
+
+const AlertViewSchema = z.object({
+  type: z.literal("alert"),
+  titleKey: z.string().min(1),
+  description: z.string().min(1),
 });
 
 export const ChatViewSchema = z.discriminatedUnion("type", [
   TableViewSchema,
   CardViewSchema,
+  AlertViewSchema,
 ]);
 
 export type ChatView = z.infer<typeof ChatViewSchema>;

@@ -485,15 +485,16 @@ describe("vista de tabla de gasto por categoría", () => {
       periodo: "2025-03",
     })) as {
       structuredContent?: {
-        view?: { columns: string[]; rows: string[][]; total?: string };
+        view?: { columns: { key: string; format: string }[]; rows: (string | number)[][]; total?: number };
       };
     };
     const view = res.structuredContent?.view;
 
-    expect(view?.columns).toEqual(["Categoría", "Importe", "Gastos"]);
-    expect(view?.rows[0][1]).toContain("121,00");
-    expect(view?.rows[0][2]).toBe("1");
-    expect(view?.total).toContain("121,00");
+    expect(view?.columns.map((c) => c.key)).toEqual(["category", "amount", "count"]);
+    expect(view?.columns[1].format).toBe("cents");
+    expect(view?.rows[0][1]).toBe(12100);
+    expect(view?.rows[0][2]).toBe(1);
+    expect(view?.total).toBe(12100);
   });
 });
 
@@ -509,12 +510,13 @@ describe("vista del estado de cuenta del mes", () => {
       trackResource: () => undefined,
     } as never);
     const res = (await handlers["get_my_month_statement"]({})) as {
-      structuredContent?: { view?: { type: string; items: { label: string }[] } };
+      structuredContent?: { view?: { type: string; items: { key: string; format: string; value: number }[] } };
     };
     await molecule.dispose();
 
     expect(res.structuredContent?.view?.type).toBe("card");
-    expect(res.structuredContent?.view?.items.map((i) => i.label)).toEqual(["Aprobados", "Pendientes", "Anulados"]);
+    expect(res.structuredContent?.view?.items.map((i) => i.key)).toEqual(["approved", "pending", "cancelled"]);
+    expect(res.structuredContent?.view?.items.every((i) => i.format === "cents")).toBe(true);
   });
 });
 

@@ -1,4 +1,5 @@
 import {
+  DEFAULT_TENANT_PROFILE,
   registerDomainProfile,
   type ProfileConfig,
 } from "./profileRegistry.js";
@@ -26,6 +27,7 @@ export const ledgerClientProfile: ProfileConfig = {
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
       requires: [],
       setup: [],
+      view: "table",
       respond: "tool",
       done: "Estos son tus gastos.",
     },
@@ -60,6 +62,7 @@ export const ledgerClientProfile: ProfileConfig = {
           args: { periodo: "$requires.periodo" },
         },
       ],
+      view: "card",
       respond: "tool",
       done: "Este es tu estado de cuenta.",
     },
@@ -147,7 +150,19 @@ export const ledgerAccountantProfile: ProfileConfig = {
 };
 
 /** Registra los perfiles del chat contable. Llamar una vez al arrancar el servidor. */
+/**
+ * Perfil del tenant: células del producto y prompt neutral. Los roles eligen su perfil de chat
+ * en cada petición; este es el que usa el cortex por defecto del tenant (TENANT_PROFILE).
+ */
+export const ledgerTenantProfile: ProfileConfig = {
+  allowedCells: [LEDGER_CLIENT_CELL, LEDGER_ACCOUNTANT_CELL],
+  agentFile: "config/ledger-agent.md",
+  description: "Aplicación contable: células del cliente y del contador",
+  chains: [],
+};
+
 export function registerLedgerProfiles(): void {
+  registerDomainProfile(DEFAULT_TENANT_PROFILE, ledgerTenantProfile);
   registerDomainProfile(LEDGER_CLIENT_PROFILE, ledgerClientProfile);
   registerDomainProfile(LEDGER_ACCOUNTANT_PROFILE, ledgerAccountantProfile);
 }

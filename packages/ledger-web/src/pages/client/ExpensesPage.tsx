@@ -1,34 +1,10 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type SubmitEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { apiPost } from "../../api";
+import { parseEuroToCents, VAT_RATES } from "@/shared";
+import type { Category, Expense } from "@/types";
 
-interface Category {
-  id: number;
-  nombre: string;
-}
-
-interface Expense {
-  id: number;
-  fecha: string;
-  importe_cents: number;
-  tasa_btw: number;
-  concepto: string;
-  estado: "PENDIENTE" | "APROBADO" | "RECHAZADO" | "ANULADO";
-  nota_rechazo: string | null;
-  nota_anulacion: string | null;
-}
-
-const VAT_RATES = [0, 9, 21] as const;
-
-/** Convierte "24,50" o "24.50" a céntimos enteros. null si no es un importe positivo. */
-export function parseEuroToCents(value: string): number | null {
-  const normalized = value.trim().replace(",", ".");
-  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
-  const cents = Math.round(Number(normalized) * 100);
-  return cents > 0 ? cents : null;
-}
-
-export function ExpensesPage({ token }: { token: string }) {
+export function ExpensesPage({ token }: Readonly<{ token: string }>) {
   const { t } = useTranslation();
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
@@ -61,7 +37,7 @@ export function ExpensesPage({ token }: { token: string }) {
     void load();
   }, [load]);
 
-  async function create(event: FormEvent) {
+  async function create(event: SubmitEvent) {
     event.preventDefault();
     setError(null);
     const cents = parseEuroToCents(amount);
