@@ -10,7 +10,7 @@ Esta guía complementa `biocore-jev-pre-routing.md`. Ese documento explica el fl
 
 Un gate es una **cadena declarada en el perfil** (`chains` en `config/ledgerProfiles.ts`). Cuando Jev propone una secuencia de herramientas que coincide con una cadena, con similitud ≥ 0.7, y la cadena puede llenar sus datos desde el mensaje, el programa ejecuta los pasos sin llamar al modelo. Si no se cumple cualquiera de estas condiciones, la pregunta va al modelo.
 
-Lo que decide es el registro en el perfil, no `tools.json`. `tools.json` solo define qué puede proponer Jev.
+Lo que decide es el registro en el perfil, no `domain-tools.json`. `domain-tools.json` solo define qué puede proponer Jev.
 
 ## Antes de escribir código: el checklist de la pregunta
 
@@ -26,13 +26,13 @@ Si alguna respuesta es "no", la pregunta se queda en el modelo. Anótalo y sigue
 
 ## Paso 1: la herramienta
 
-Las herramientas viven en las células del producto, en `config/ledgerComposition.ts`.
+Las herramientas viven en las células del producto, en `domain/ledger/ledgerComposition.ts`.
 
 1. Registra la herramienta en la célula correspondiente con `server.registerTool(nombre, { description, inputSchema }, handler)`.
 2. Usa esquemas con tipos concretos: `z.enum`, `z.string()` y `z.number()`. **No uses `pattern`, `z.any()` ni `z.record(z.any())`**: el proveedor del modelo los rechaza. Valida el formato dentro del handler.
 3. El handler devuelve `{ content: [{ type: "text", text }] }`. Da formato al texto con código: importes, fechas y totales en el código, no en el modelo.
 4. Añade el nombre de la herramienta a `tools` de su célula en `config/domain-registry.json`.
-5. Añade la descripción en `config/tools.json`. **Jev elige por esa descripción**: escríbela para que deje claro qué hace la herramienta y cuándo no usarla. Por ejemplo, `list_my_expenses` dice que no sirve para totales.
+5. Añade la descripción en `config/domain-tools.json`. **Jev elige por esa descripción**: escríbela para que deje claro qué hace la herramienta y cuándo no usarla. Por ejemplo, `list_my_expenses` dice que no sirve para totales.
 
 ## Paso 2: los datos (solo si la cadena los necesita)
 
@@ -95,7 +95,7 @@ Al arrancar, `registerDomainProfile` valida cada perfil con zod. Si una cadena n
 Mínimo, para cada gate nuevo:
 
 1. **Extractor** (si lo hay): frases en español, neerlandés e inglés, casos ambiguos y casos sin dato. Ver `tests/atoms/periodExtraction.spec.ts`.
-2. **Declaración de la cadena:** comprueba `id`, `requires`, `steps` y `respond` con `toEqual`. Ver el bloque "estado de cuenta del mes actual" en `tests/config/ledgerTools.spec.ts`.
+2. **Declaración de la cadena:** comprueba `id`, `requires`, `steps` y `respond` con `toEqual`. Ver el bloque "estado de cuenta del mes actual" en `tests/domain/ledger/ledgerTools.spec.ts`.
 3. **La herramienta:** registra el tipo con un servidor simulado y llama al handler con datos reales de una base temporal. Comprueba el texto que recibirá el modelo. Ver `ledgerTools.spec.ts`.
 
 Ejecuta todo desde la raíz:
@@ -127,17 +127,29 @@ Compara `platform_metrics` antes y después de la pregunta. Una pregunta que va 
 ## Caso de referencia: `estado-de-cuenta`
 
 1. **Checklist:** respuesta fija (sí), un paso (`get_my_statement` lo resuelve), un dato variable (periodo, sí), células permitidas (sí), respuesta de herramienta (sí).
-2. **Herramienta:** ya existe. Su `description` en `tools.json` dice que es para totales de un periodo.
+2. **Herramienta:** ya existe. Su `description` en `domain-tools.json` dice que es para totales de un periodo.
 3. **Dato:** el extractor `periodo` ya existe (`atoms/periodExtraction.ts`).
 4. **Cadena:** registrada en `ledgerClientProfile`, con `requires: periodo` y `respond: "tool"`.
 5. **Pruebas:** en `periodExtraction.spec.ts` y `ledgerTools.spec.ts`.
 6. **Vivo:** "segundo trimestre" después de la aclaración dio `2026-T2` y se ejecutó sin modelo.
 
+## Vista de datos (opcional)
+
+Una herramienta puede devolver, además del texto, una vista para el panel junto al chat. Va en `structuredContent.view`:
+
+- `type`: `"table"` (filas y columnas) o `"card"` (pares etiqueta-valor).
+- `titleKey` y `params`: clave de traducción del título y sus valores. El front traduce; el backend no manda títulos en un idioma.
+- Columnas e ítems con `key` y `format` (`text`, `cents` o `count`). Los importes van en céntimos, como número.
+
+Para que una cadena declare el tipo que espera, agrega `view: "table"` o `view: "card"` en su definición. Si la herramienta produce otro tipo, la vista se descarta y el chat responde con el texto completo. Si la cadena no declara tipo, cualquier vista sirve.
+
+El texto de la herramienta sigue existiendo para el modelo. Cuando la cadena produce una vista nueva, el chat responde con su `done`.
 ## Checklist final
 
 - [ ] La pregunta cumple las cinco condiciones del checklist.
-- [ ] La herramienta usa esquemas sin `pattern` ni `z.any()`, y su descripción en `tools.json` es clara.
+- [ ] La herramienta usa esquemas sin `pattern` ni `z.any()`, y su descripción en `domain-tools.json` es clara.
 - [ ] La herramienta está en `domain-registry.json`.
+- [ ] El prompt del agente (`ledger-agent-cliente.md` o `ledger-agent-contador.md`) menciona la herramienta entre comillas invertidas. La prueba `agentPrompts.spec.ts` lo verifica.
 - [ ] Si hay dato, el extractor devuelve `null` en ambigüedad y tiene pruebas.
 - [ ] La cadena tiene `id` único, `requires` de máximo un dato y células en `allowedCells`.
 - [ ] Hay pruebas del extractor, de la declaración y de la herramienta.
