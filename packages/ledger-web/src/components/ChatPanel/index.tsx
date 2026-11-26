@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { apiPost } from "../../api";
 import type { ChatMessage, ChatPanelProps, ChatView } from "@/types";
+import { Alert } from "@/shared/components";
 
 // import { BloubAttentif } from "./spinners";
 // import Icon from "@/assets/svg_spiners/Icon";
@@ -18,6 +19,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
   const [busy, setBusy] = useState(false);
   const cancelledRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const failedMessage = messages.find((m) => m.failed);
   // const [open, setOpen] = useState(false);
 
   // Al salir de la pantalla no se aplican respuestas que lleguen después.
@@ -105,19 +107,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
               {m.role === "user" ? t("chat.you") : t("chat.assistant")}
             </span>
             <span className="whitespace-pre-wrap">{m.text}</span>
-            {m.failed && (
-              <button
-                type="button"
-                onClick={() => retry(m)}
-                disabled={busy}
-                className="mt-2 block text-xs font-medium text-primary-deep underline disabled:opacity-50"
-              >
-                {t("chat.retry")}
-              </button>
-            )}
           </div>
         ))}
 
+        {failedMessage && (
+          <Alert
+            variant="error"
+            action={{ label: t("chat.retry"), onClick: () => retry(failedMessage), disabled: busy }}
+          >
+            {t("chat.errorSend")}
+          </Alert>
+        )}
         {busy && <p className="text-xs text-steel">{t("chat.thinking")}</p>}
         <div ref={bottomRef} />
       </div>
