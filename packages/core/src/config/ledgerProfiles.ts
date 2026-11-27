@@ -24,9 +24,20 @@ export const ledgerClientProfile: ProfileConfig = {
     {
       id: "mis-gastos",
       avoidTerms: [
-        "aprobad", "pendient", "rechazad", "anulad", "estado",
-        "goedgekeurd", "behandeling", "afgewezen", "geannuleerd",
-        "approved", "pending", "rejected", "cancelled", "canceled",
+        "aprobad",
+        "pendient",
+        "rechazad",
+        "anulad",
+        "estado",
+        "goedgekeurd",
+        "behandeling",
+        "afgewezen",
+        "geannuleerd",
+        "approved",
+        "pending",
+        "rejected",
+        "cancelled",
+        "canceled",
       ],
       description: "Lista los gastos del cliente",
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
@@ -38,7 +49,8 @@ export const ledgerClientProfile: ProfileConfig = {
     },
     {
       id: "gastos-por-estado",
-      description: "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
+      description:
+        "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
       requires: [
         {
           name: "estado",
@@ -97,10 +109,12 @@ export const ledgerClientProfile: ProfileConfig = {
       description: "Gasto del cliente por mes del año en curso, en tabla",
       requires: [],
       setup: [],
-      steps: [{ cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} }],
+      steps: [
+        { cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} },
+      ],
       respond: "tool",
       view: "table",
-      done: "Te muestro tu gasto por mes en la tabla.",
+      done: "Este es tu gasto por mes para este año. Si quieres los gastos de un mes concreto, dime cuál.",
     },
     {
       id: "mis-categorias",
