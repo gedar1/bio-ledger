@@ -270,10 +270,8 @@ export class UnifiedCortex extends BaseOrchestrator {
     this.trackInput(cleanText);
     const match = await this.queryReflex(cleanText);
     if (match && match.similarity >= CHAIN_MIN_SIMILARITY) {
-      const chain = this.findChain(match.record.sequence);
-      if (chain && !mentionsAny(cleanText, chain.avoidTerms ?? [])) {
-        return this.handleChain(chain, cleanText, streaming);
-      }
+      const chain = this.findChain(match.record.sequence, cleanText);
+      if (chain) return this.handleChain(chain, cleanText, streaming);
     }
     if (match?.mode === "hint") {
       this.addHistoryMessage(this.getSessionId(), {
@@ -498,13 +496,19 @@ export class UnifiedCortex extends BaseOrchestrator {
   }
 
   /** Cadena del perfil que coincide con la secuencia de Jev y cuyas células están permitidas. */
-  private findChain(sequence: string): ChainDefinition | undefined {
+  /**
+   * Cadena del perfil que coincide con la secuencia de Jev, cuyas células están permitidas
+   * y cuyos términos de guarda no aparecen en el mensaje. Si la primera cadena queda bloqueada,
+   * se prueba la siguiente: así una pregunta con estado llega a la cadena que pide el estado.
+   */
+  private findChain(sequence: string, text: string): ChainDefinition | undefined {
     const key = sequenceKey(sequence);
     const allowed = this.organisms[0]?.getAllowedCells() ?? [];
     return this.chains.find(
       (chain) =>
         chainSequence(chain) === key &&
-        chain.steps.every((step) => allowed.includes(step.cell)),
+        chain.steps.every((step) => allowed.includes(step.cell)) &&
+        !mentionsAny(text, chain.avoidTerms ?? []),
     );
   }
 

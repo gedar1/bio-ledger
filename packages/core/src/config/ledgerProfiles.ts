@@ -37,6 +37,27 @@ export const ledgerClientProfile: ProfileConfig = {
       done: "Estos son tus gastos.",
     },
     {
+      id: "gastos-por-estado",
+      description: "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
+      requires: [
+        {
+          name: "estado",
+          extractor: "estado",
+          ask: "¿Qué estado quieres ver: aprobados, pendientes, rechazados o anulados?",
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_CLIENT_CELL,
+          tool: "list_my_expenses",
+          args: { estado: "$requires.estado" },
+        },
+      ],
+      respond: "tool",
+      done: "Estos son tus gastos.",
+    },
+    {
       id: "estado-de-cuenta-mes",
       description: "Estado de cuenta del mes actual del cliente",
       requires: [],
