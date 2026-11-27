@@ -23,6 +23,11 @@ export const ledgerClientProfile: ProfileConfig = {
   chains: [
     {
       id: "mis-gastos",
+      avoidTerms: [
+        "aprobad", "pendient", "rechazad", "anulad", "estado",
+        "goedgekeurd", "behandeling", "afgewezen", "geannuleerd",
+        "approved", "pending", "rejected", "cancelled", "canceled",
+      ],
       description: "Lista los gastos del cliente",
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
       requires: [],

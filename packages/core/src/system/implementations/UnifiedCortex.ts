@@ -42,6 +42,7 @@ import type { ITenantTokenLimitReader } from "../interfaces/ITenantTokenLimitRea
 import {
   CHAIN_MIN_SIMILARITY,
   PENDING_DISCARDED_WARNING,
+  mentionsAny,
 } from "../../atoms/chainExtraction.js";
 import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
 import { viewFitsDeclaration } from "../../atoms/chatView.js";
@@ -270,7 +271,9 @@ export class UnifiedCortex extends BaseOrchestrator {
     const match = await this.queryReflex(cleanText);
     if (match && match.similarity >= CHAIN_MIN_SIMILARITY) {
       const chain = this.findChain(match.record.sequence);
-      if (chain) return this.handleChain(chain, cleanText, streaming);
+      if (chain && !mentionsAny(cleanText, chain.avoidTerms ?? [])) {
+        return this.handleChain(chain, cleanText, streaming);
+      }
     }
     if (match?.mode === "hint") {
       this.addHistoryMessage(this.getSessionId(), {

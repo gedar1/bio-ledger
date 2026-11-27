@@ -48,6 +48,11 @@ export const ChainDefinitionSchema = z.object({
    * Sin declarar, cualquier vista de herramienta sirve.
    */
   view: z.enum(["table", "card"]).optional(),
+  /**
+   * Términos que anulan la cadena. Si el mensaje los menciona, la pregunta va al modelo.
+   * Sirve para preguntas con filtro (un estado), que la cadena no puede resolver sin el dato.
+   */
+  avoidTerms: z.array(z.string().min(1)).optional(),
   /** Respuesta al usuario cuando la cadena termina bien. */
   done: z.string().min(1).default("Cadena completada."),
 });
