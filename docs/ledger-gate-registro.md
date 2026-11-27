@@ -12,6 +12,8 @@ Un gate es una **cadena declarada en el perfil** (`chains` en `config/ledgerProf
 
 Lo que decide es el registro en el perfil, no `domain-tools.json`. `domain-tools.json` solo define qué puede proponer Jev.
 
+Si varias cadenas comparten la secuencia de herramientas, el gate toma la primera cuya guarda (`avoidTerms`) no aparece en el mensaje. Así una pregunta con filtro, como "aprobados", no se queda en la lista completa: la cadena sin filtro queda bloqueada y la de filtro la responde.
+
 ## Antes de escribir código: el checklist de la pregunta
 
 Antes de tocar archivos, responde estas preguntas sobre la pregunta que quieres resolver sin modelo:
@@ -44,6 +46,7 @@ Extractores actuales (`config/chainSchema.ts`, `EXTRACTOR_NAMES`):
 - `url`: una URL del texto.
 - `text`: el texto completo.
 - `periodo`: un mes o trimestre (`atoms/periodExtraction.ts`).
+- `estado`: aprobado, pendiente, rechazado o anulado, en nl, es y en (`atoms/estadoExtraction.ts`). Devuelve `null` si no hay estado o si hay más de uno.
 
 Para agregar un extractor nuevo:
 1. Escribe la lógica como función pura en `atoms/`, con pruebas en `tests/atoms/`.
@@ -81,12 +84,14 @@ Reglas de cada campo:
 - **`steps[].cell`**: debe estar en `allowedCells` del perfil. Si no, el perfil no arranca.
 - **`args`**: valores literales, o `$requires.<nombre>`, `$previous` o `$now`. El nombre después de `$requires.` debe coincidir con `requires[].name`.
 - **`respond`**: `"tool"` usa el texto de la última herramienta. Si no hay texto, se usa `done`.
+- **`avoidTerms`** (opcional): términos que anulan la cadena. Si el mensaje los menciona, la cadena no se ejecuta y la pregunta sigue con otra cadena o con el modelo. Úsalo en la cadena sin filtro, para que no responda la lista completa cuando la pregunta pide un estado.
 
 ### Errores que no se ven hasta que pruebas
 
 - **Secuencia repetida.** Dos cadenas con la misma secuencia de herramientas colisionan. La cadena se busca por los **nombres de herramienta**, no por los argumentos. Si necesitas dos respuestas distintas con la misma herramienta, usa un extractor, no dos cadenas.
 - **Secuencia de dos pasos.** Si Jev propone `herramienta A → herramienta B`, tu cadena de un paso no coincide. Revisa el log `executionChain` antes de culpar al extractor.
 - **Dato requerido sin extractor.** `requires` con un extractor que no existe impide que el perfil arranque.
+- **Pregunta con filtro que va al LLM.** Si Jev propone la herramienta con confianza por debajo de 0,7, ninguna cadena se ejecuta. Revisa la descripción de la herramienta en `domain-tools.json`: debe nombrar el filtro, como lo hicimos con "estado" en `list_my_expenses`. Mide la confianza con `LOG_LEVEL=debug` (línea `Jev primer paso`).
 
 ## Paso 4: validación automática
 
@@ -153,6 +158,7 @@ El texto de la herramienta sigue existiendo para el modelo. Cuando la cadena pro
 - [ ] La herramienta está en `domain-registry.json`.
 - [ ] El prompt del agente (`ledger-agent-cliente.md` o `ledger-agent-contador.md`) menciona la herramienta entre comillas invertidas. La prueba `agentPrompts.spec.ts` lo verifica.
 - [ ] Si hay dato, el extractor devuelve `null` en ambigüedad y tiene pruebas.
+- [ ] Si la cadena es de filtro, la cadena sin filtro declara `avoidTerms` con esos términos, y la prueba `gastosPorEstado.spec.ts` (o equivalente) lo verifica.
 - [ ] La cadena tiene `id` único, `requires` de máximo un dato y células en `allowedCells`.
 - [ ] Hay pruebas del extractor, de la declaración y de la herramienta.
 - [ ] El build y la suite pasan.
