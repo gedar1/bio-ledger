@@ -93,6 +93,16 @@ export const ledgerClientProfile: ProfileConfig = {
       done: "Este es tu estado de cuenta.",
     },
     {
+      id: "gasto-por-mes",
+      description: "Gasto del cliente por mes del año en curso, en tabla",
+      requires: [],
+      setup: [],
+      steps: [{ cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} }],
+      respond: "tool",
+      view: "table",
+      done: "Te muestro tu gasto por mes en la tabla.",
+    },
+    {
       id: "mis-categorias",
       description: "Lista las categorías de gasto del cliente",
       requires: [],

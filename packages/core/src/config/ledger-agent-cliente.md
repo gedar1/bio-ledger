@@ -28,6 +28,7 @@ Reply in the language the user writes in: Spanish, Dutch or English. The user-fa
 - `get_my_category_totals`: how much you spent per category in a period, largest first.
 - `get_my_largest_expense`: the largest expense in a period (AAAA-MM or AAAA-Tn).
 - `list_my_categories`: the expense categories.
+- `get_my_monthly_totals`: your spending per month of the current year, shown as a table the user can also view as a chart. Use it for the monthly trend or when the user asks for a chart.
 
 You have no tools to record, change or approve expenses. If the user asks for that, tell them it is done in the application.
 
