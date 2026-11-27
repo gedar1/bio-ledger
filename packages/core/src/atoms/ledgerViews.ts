@@ -6,7 +6,12 @@
  */
 import type { ChatView } from "./chatView.js";
 import type { ExpenseLine } from "./ledgerText.js";
-import type { CategoryTotal, Statement, StatementPeriod } from "./statement.js";
+import type {
+  CategoryTotal,
+  MonthlyTotal,
+  Statement,
+  StatementPeriod,
+} from "./statement.js";
 
 type CardItems = Extract<ChatView, { type: "card" }>["items"];
 
@@ -51,9 +56,21 @@ export function statementCardView(
   withTotal: boolean,
 ): ChatView {
   const items: CardItems = [
-    { key: "approved", format: "cents", value: statement.aprobados.total_cents },
-    { key: "pending", format: "cents", value: statement.pendientes.total_cents },
-    { key: "cancelled", format: "cents", value: statement.anulados.total_cents },
+    {
+      key: "approved",
+      format: "cents",
+      value: statement.aprobados.total_cents,
+    },
+    {
+      key: "pending",
+      format: "cents",
+      value: statement.pendientes.total_cents,
+    },
+    {
+      key: "cancelled",
+      format: "cents",
+      value: statement.anulados.total_cents,
+    },
   ];
   if (withTotal) {
     items.push({
@@ -70,5 +87,23 @@ export function statementCardView(
     titleKey: "chat.viewStatementTitle",
     params: { period: statement.periodo },
     items,
+  };
+}
+
+/** Tabla con el gastado por mes del año: una fila por mes y el total. El front puede verla como gráfico. */
+export function monthlyTableView(
+  year: number,
+  series: readonly MonthlyTotal[],
+): ChatView {
+  return {
+    type: "table",
+    titleKey: "chat.viewMonthlyTitle",
+    params: { year: String(year) },
+    columns: [
+      { key: "month", format: "month" },
+      { key: "amount", format: "cents" },
+    ],
+    rows: series.map((s) => [s.label, s.cents]),
+    total: series.reduce((sum, s) => sum + s.cents, 0),
   };
 }

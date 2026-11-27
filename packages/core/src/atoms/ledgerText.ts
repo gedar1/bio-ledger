@@ -5,7 +5,12 @@
  * Funciones puras. Los importes llegan en céntimos y se formatean aquí, en EUR.
  */
 import type { ExpenseState } from "./expenseRules.js";
-import type { CategoryTotal, Statement, StatementPeriod } from "./statement.js";
+import type {
+  CategoryTotal,
+  MonthlyTotal,
+  Statement,
+  StatementPeriod,
+} from "./statement.js";
 
 /** Lo que el texto de un gasto necesita. Los campos de nota son opcionales. */
 export interface ExpenseLine {
@@ -127,4 +132,11 @@ export function formatStatement(
     lineas.push(`Sin soporte: ${formatCents(a.sin_soporte_cents)}.`);
   }
   return lineas.join("\n");
+}
+
+/** Texto del gastado por mes del año: respaldo del gráfico y lo que lee el modelo. */
+export function monthlyTotalsText(year: number, series: readonly MonthlyTotal[]): string {
+  const total = series.reduce((sum, s) => sum + s.cents, 0);
+  const lineas = series.map((s) => `- ${s.label}: ${formatCents(s.cents)}`);
+  return [`Gasto por mes de ${year}, en EUR:`, ...lineas, `Total: ${formatCents(total)}`].join("\n");
 }

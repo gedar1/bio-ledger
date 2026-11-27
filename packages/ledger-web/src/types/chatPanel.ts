@@ -9,7 +9,7 @@ export interface ChatPanelProps {
 /** Valor crudo que manda el backend: texto o número. */
 export type ChatCell = string | number;
 /** Cómo se muestra un valor. Los importes llegan en céntimos. */
-export type ValueFormat = "text" | "cents" | "count";
+export type ValueFormat = "text" | "cents" | "count" | "month";
 
 /** Vista de datos del backend. Trae claves y valores crudos; el front traduce y da formato. */
 export type ChatView =

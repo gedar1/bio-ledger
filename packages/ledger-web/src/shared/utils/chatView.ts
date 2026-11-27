@@ -11,6 +11,7 @@ export const COLUMN_LABEL: Record<string, string> = {
   date: "chat.viewColDate",
   state: "chat.viewColState",
   concept: "chat.viewColConcept",
+  month: "chat.viewColMonth",
 };
 export const ITEM_LABEL: Record<string, string> = {
   approved: "chat.viewItemApproved",

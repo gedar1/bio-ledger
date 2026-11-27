@@ -4,7 +4,8 @@
  * El backend manda claves, valores crudos y el formato de cada valor. No manda etiquetas ni
  * importes formateados: el front traduce las claves y da formato, según el idioma de la interfaz.
  *
- * Formatos: "text" (texto tal cual), "cents" (importe en céntimos, entero) y "count" (entero).
+ * Formatos: "text" (texto tal cual), "cents" (importe en céntimos, entero), "count" (entero) y
+ * "month" (código "AAAA-MM", que el front muestra con el nombre del mes).
  * Funciones puras. Lo usa el orquestador para leer la vista de un resultado de herramienta.
  */
 import { z } from "zod";
@@ -12,7 +13,7 @@ import { z } from "zod";
 export const CHAT_VIEW_TYPES = ["table", "card", "text", "alert"] as const;
 export type ChatViewType = (typeof CHAT_VIEW_TYPES)[number];
 
-export const VALUE_FORMATS = ["text", "cents", "count"] as const;
+export const VALUE_FORMATS = ["text", "cents", "count", "month"] as const;
 export type ValueFormat = (typeof VALUE_FORMATS)[number];
 
 const FormatSchema = z.enum(VALUE_FORMATS);

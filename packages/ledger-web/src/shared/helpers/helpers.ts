@@ -40,6 +40,14 @@ export const formatValue = (
       currency: "EUR",
     }).format(Number(value) / 100);
   }
+  if (format === "month") {
+    // Código "AAAA-MM". Se formatea en UTC para que la zona horaria no cambie el mes.
+    const [year, month] = String(value).split("-").map(Number);
+    return new Intl.DateTimeFormat(locale, {
+      month: "short",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, month - 1, 1)));
+  }
   return String(value);
 };
 

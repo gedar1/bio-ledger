@@ -10,6 +10,7 @@ import {
   categoryTotals,
   currentMonthCode,
   largestExpense,
+  monthlyTotals,
   parsePeriod,
 } from "../atoms/statement.js";
 import {
@@ -18,11 +19,13 @@ import {
   formatExpenses,
   formatStatement,
   largestExpenseText,
+  monthlyTotalsText,
 } from "../atoms/ledgerText.js";
 import {
   categoryTotalsView,
   expensesListView,
   statementCardView,
+  monthlyTableView,
 } from "../atoms/ledgerViews.js";
 import type { ChatView } from "../atoms/chatView.js";
 import type { CellComposition, CellRuntimeContext } from "./CellComposition.js";
@@ -173,6 +176,23 @@ export const ledgerRegistrations: Registration[] = [
           return toolResult(
             formatStatement(statement, false),
             statementCardView(statement, false),
+          );
+        },
+      );
+
+      server.registerTool(
+        "get_my_monthly_totals",
+        {
+          description: "Gasto del cliente por mes del año en curso, en tabla (el cliente puede verla como gráfico). Úsala para la evolución mensual del gasto o cuando pida un gráfico.",
+          inputSchema: {},
+        },
+        async () => {
+          const year = new Date().getFullYear();
+          const molecule = moleculeFor(context, LEDGER_CLIENT_CELL);
+          const series = monthlyTotals(year, molecule.listExpenses());
+          return toolResult(
+            monthlyTotalsText(year, series),
+            monthlyTableView(year, series),
           );
         },
       );
