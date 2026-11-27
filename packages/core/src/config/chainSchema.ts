@@ -19,7 +19,7 @@
 import { z } from "zod";
 
 /** Extractores de datos del mensaje. Los implementa el motor en `atoms/chainSpec.ts`. */
-export const EXTRACTOR_NAMES = ["url", "text", "periodo"] as const;
+export const EXTRACTOR_NAMES = ["url", "text", "periodo", "estado"] as const;
 export type ExtractorName = (typeof EXTRACTOR_NAMES)[number];
 
 export const ChainStepSchema = z.object({
@@ -48,6 +48,11 @@ export const ChainDefinitionSchema = z.object({
    * Sin declarar, cualquier vista de herramienta sirve.
    */
   view: z.enum(["table", "card"]).optional(),
+  /**
+   * Términos que anulan la cadena. Si el mensaje los menciona, la pregunta va al modelo.
+   * Sirve para preguntas con filtro (un estado), que la cadena no puede resolver sin el dato.
+   */
+  avoidTerms: z.array(z.string().min(1)).optional(),
   /** Respuesta al usuario cuando la cadena termina bien. */
   done: z.string().min(1).default("Cadena completada."),
 });

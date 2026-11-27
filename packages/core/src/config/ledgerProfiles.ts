@@ -23,11 +23,37 @@ export const ledgerClientProfile: ProfileConfig = {
   chains: [
     {
       id: "mis-gastos",
+      avoidTerms: [
+        "aprobad", "pendient", "rechazad", "anulad", "estado",
+        "goedgekeurd", "behandeling", "afgewezen", "geannuleerd",
+        "approved", "pending", "rejected", "cancelled", "canceled",
+      ],
       description: "Lista los gastos del cliente",
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
       requires: [],
       setup: [],
       view: "table",
+      respond: "tool",
+      done: "Estos son tus gastos.",
+    },
+    {
+      id: "gastos-por-estado",
+      description: "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
+      requires: [
+        {
+          name: "estado",
+          extractor: "estado",
+          ask: "¿Qué estado quieres ver: aprobados, pendientes, rechazados o anulados?",
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_CLIENT_CELL,
+          tool: "list_my_expenses",
+          args: { estado: "$requires.estado" },
+        },
+      ],
       respond: "tool",
       done: "Estos son tus gastos.",
     },

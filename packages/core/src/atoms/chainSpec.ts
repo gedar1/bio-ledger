@@ -6,6 +6,7 @@
 import type { ChainDefinition, ExtractorName } from "../config/chainSchema.js";
 import { extractUrl } from "./chainExtraction.js";
 import { extractPeriodo } from "./periodExtraction.js";
+import { extractEstado } from "./estadoExtraction.js";
 
 /** Extractores del motor. El perfil referencia el nombre, no la implementación. */
 export const EXTRACTORS: Record<ExtractorName, (text: string) => string | null> = {
@@ -15,6 +16,7 @@ export const EXTRACTORS: Record<ExtractorName, (text: string) => string | null> 
     return trimmed === "" ? null : trimmed;
   },
   periodo: (text) => extractPeriodo(text),
+  estado: (text) => extractEstado(text),
 };
 
 /** Secuencia de herramientas de la cadena, con el formato que usa Jev: "a→b". */
