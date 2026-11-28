@@ -179,22 +179,30 @@ export const ledgerAccountantProfile: ProfileConfig = {
   allowedCells: [LEDGER_ACCOUNTANT_CELL],
   agentFile: "config/ledger-agent-contador.md",
   description:
-    "Asistente del contador: revisión de gastos y estado de cuenta del cliente seleccionado",
+    "Asistente del contador: revisión de gastos y estado de cuenta de sus clientes, indicados por nombre o ID",
   chains: [
     {
-      id: "gastos-pendientes",
-      description: "Lista los gastos pendientes de revisión del cliente",
+      id: "pendientes-de-cliente",
+      description:
+        "Gastos pendientes de revisión de un cliente del contador, indicado por nombre o ID",
+      requires: [
+        {
+          name: "cliente",
+          extractor: "cliente",
+          ask: "¿De qué cliente? Dame su nombre completo o su ID.",
+        },
+      ],
+      setup: [],
       steps: [
         {
           cell: LEDGER_ACCOUNTANT_CELL,
           tool: "list_pending_expenses",
-          args: {},
+          args: { tenantId: "$requires.cliente" },
         },
       ],
-      requires: [],
-      setup: [],
+      view: "table",
       respond: "tool",
-      done: "Estos son los gastos pendientes.",
+      done: "Estos son los gastos pendientes del cliente.",
     },
   ],
 };

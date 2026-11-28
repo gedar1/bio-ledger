@@ -118,7 +118,7 @@ export function resolvePlatformAccess(
  * del tenant con resolveTenantAccess. Cualquier otro endpoint queda prohibido.
  */
 const ACCOUNTANT_ENDPOINTS: ReadonlySet<string> = new Set([
-  "chat",
+  "accountant/chat",
   "accountant/tenants",
   "accountant/tenants/reset-password",
   "ledger/accountant/expenses/list",
@@ -228,12 +228,16 @@ export function chatProfileFor(
   if (!isAuthEnabled()) return undefined;
   const authHeader = params._authHeader;
   if (typeof authHeader !== "string") return undefined;
-  if (authHeader.startsWith("Bearer ") && AccountantAuthService.verifyToken(authHeader.slice(7))) {
+  if (
+    authHeader.startsWith("Bearer ") &&
+    AccountantAuthService.verifyToken(authHeader.slice(7))
+  ) {
     return LEDGER_ACCOUNTANT_PROFILE;
   }
   if (!tenantAuthService) return undefined;
   const ctx = resolveRequestAuth(authHeader, tenantAuthService);
-  if (!("error" in ctx) && ctx.auth_type === "tenant_jwt") return LEDGER_CLIENT_PROFILE;
+  if (!("error" in ctx) && ctx.auth_type === "tenant_jwt")
+    return LEDGER_CLIENT_PROFILE;
   return undefined;
 }
 

@@ -3,6 +3,10 @@ export interface ChatPanelProps {
   token: string;
   /** Recibe la vista de datos cuando la respuesta la trae. */
   onView?: (view: ChatView) => void;
+  /** Ruta del backend a la que se envían los mensajes. Por defecto "chat" (chat del cliente). */
+  endpoint?: string;
+  /** Campos extra que viajan con cada mensaje, por ejemplo el tenantId del cliente en el chat del contador. */
+  extraBody?: Record<string, unknown>;
 }
 
 /** Tabla que el backend envía junto a la respuesta. Los importes llegan ya formateados. */

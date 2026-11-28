@@ -35,10 +35,13 @@ export function categoryTotalsView(
 }
 
 /** Tabla de todos los gastos: fecha, estado, concepto e importe en céntimos. */
-export function expensesListView(expenses: readonly ExpenseLine[]): ChatView {
+export function expensesListView(
+  expenses: readonly ExpenseLine[],
+  titleKey = "chat.viewExpensesTotalTitle",
+): ChatView {
   return {
     type: "table",
-    titleKey: "chat.viewExpensesTotalTitle",
+    titleKey,
     params: {},
     columns: [
       { key: "date", format: "text" },

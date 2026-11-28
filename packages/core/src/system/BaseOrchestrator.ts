@@ -20,6 +20,7 @@ import {
   DefaultHistoryManager,
   DefaultPerfTracker,
 } from "./strategies/index.js";
+import type { ToolGuard } from "../atoms/accountantScope.js";
 import type {
   IReflexExecutor,
   IHistoryManager,
@@ -77,6 +78,13 @@ export abstract class BaseOrchestrator implements IOrchestrator {
 
   /** Input del usuario de la sesión actual — usado por el guardrail de ejecución. */
   protected _currentUserInput: string = "";
+  /** Validador de llamadas a herramientas para el turno actual. Null si no hay restricción. */
+  private _toolGuard: ToolGuard | null = null;
+
+  /** Activa o quita el validador de herramientas. Lo usa el chat del contador por turno. */
+  public setToolGuard(guard: ToolGuard | null): void {
+    this._toolGuard = guard;
+  }
   /** Última vista de datos devuelta por una herramienta. Se mantiene hasta que llegue otra. */
   protected _lastView: ChatView | null = null;
 
@@ -229,7 +237,18 @@ export abstract class BaseOrchestrator implements IOrchestrator {
   }
 
   public async executeAction(name: string, args: any): Promise<string> {
-    this.log.info("Ejecutando acción", { tool: name });
+    const tenantId =
+      typeof args?.tenantId === "string" ? args.tenantId : undefined;
+    this.log.info("Ejecutando acción", {
+      tool: name,
+      ...(tenantId ? { tenantId } : {}),
+    });
+
+    const blocked = this._toolGuard?.(name, args);
+    if (blocked) {
+      this.log.warn("Herramienta bloqueada por alcance", { tool: name });
+      return blocked;
+    }
 
     if (name === "stimulate_differentiation") {
       const cellType = args.type;
