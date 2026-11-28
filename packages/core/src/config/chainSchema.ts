@@ -11,8 +11,8 @@
  *   cualquier otro valor  literal
  *
  * Limitaciones deliberadas de esta versión:
- *   - `requires` admite como máximo un dato. Si la cadena necesita más, se pedirán en
- *     una conversación de varios turnos, que todavía no existe.
+ *   - `requires` admite hasta 3 datos. Se piden en orden; un dato `optional` que no llega
+ *     se omite sin preguntar, y el paso se ejecuta sin ese argumento.
  *   - `setup` se ejecuta en la célula `memory` antes del primer paso.
  */
 
@@ -44,29 +44,68 @@ export const ChainRequirementSchema = z.object({
    * Si está, la consulta sigue pendiente y se repite. Si no, la consulta se descarta.
    */
   retry: z.string().min(1).optional(),
+  /** Si es true y el mensaje no trae el dato, no se pregunta: el paso se ejecuta sin él. */
+  optional: z.boolean().optional(),
 });
 
-export const ChainDefinitionSchema = z.object({
-  id: z.string().regex(/^[a-z0-9-]+$/, "id: minúsculas, números y guion"),
-  /** "tool": la respuesta es el texto que devuelve la última herramienta, sin el modelo. */
-  respond: z.enum(["tool"]).optional(),
-  description: z.string().min(1),
-  requires: z.array(ChainRequirementSchema).max(1).default([]),
-  steps: z.array(ChainStepSchema).min(1),
-  setup: z.array(z.string().min(1)).default([]),
-  /**
-   * Tipo de vista que la cadena declara. Si la herramienta produce otro tipo, la vista se descarta.
-   * Sin declarar, cualquier vista de herramienta sirve.
-   */
-  view: z.enum(["table", "card"]).optional(),
-  /**
-   * Términos que anulan la cadena. Si el mensaje los menciona, la pregunta va al modelo.
-   * Sirve para preguntas con filtro (un estado), que la cadena no puede resolver sin el dato.
-   */
-  avoidTerms: z.array(z.string().min(1)).optional(),
-  /** Respuesta al usuario cuando la cadena termina bien. */
-  done: z.string().min(1).default("Cadena completada."),
-});
+/** Nombres de `$requires.<nombre>` usados en los argumentos de un paso, a cualquier profundidad. */
+function requiresReferences(value: unknown): string[] {
+  if (typeof value === "string") {
+    return value.startsWith("$requires.")
+      ? [value.slice("$requires.".length)]
+      : [];
+  }
+  if (Array.isArray(value)) return value.flatMap(requiresReferences);
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).flatMap(requiresReferences);
+  }
+  return [];
+}
+
+export const ChainDefinitionSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9-]+$/, "id: minúsculas, números y guion"),
+    /** "tool": la respuesta es el texto que devuelve la última herramienta, sin el modelo. */
+    respond: z.enum(["tool"]).optional(),
+    description: z.string().min(1),
+    requires: z.array(ChainRequirementSchema).max(3).default([]),
+    steps: z.array(ChainStepSchema).min(1),
+    setup: z.array(z.string().min(1)).default([]),
+    /**
+     * Tipo de vista que la cadena declara. Si la herramienta produce otro tipo, la vista se descarta.
+     * Sin declarar, cualquier vista de herramienta sirve.
+     */
+    view: z.enum(["table", "card"]).optional(),
+    /**
+     * Términos que anulan la cadena. Si el mensaje los menciona, la pregunta va al modelo.
+     * Sirve para preguntas con filtro (un estado), que la cadena no puede resolver sin el dato.
+     */
+    avoidTerms: z.array(z.string().min(1)).optional(),
+    /** Respuesta al usuario cuando la cadena termina bien. */
+    done: z.string().min(1).default("Cadena completada."),
+  })
+  .superRefine((chain, ctx) => {
+    const names = chain.requires.map((r) => r.name);
+    if (new Set(names).size !== names.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "requires: hay nombres repetidos",
+        path: ["requires"],
+      });
+    }
+    const declared = new Set(names);
+    for (const step of chain.steps) {
+      for (const ref of requiresReferences(step.args)) {
+        if (!declared.has(ref)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `steps: $requires.${ref} no está declarado en requires`,
+            path: ["steps"],
+          });
+        }
+      }
+    }
+  });
 
 export type ChainStep = z.infer<typeof ChainStepSchema>;
 export type ChainRequirement = z.infer<typeof ChainRequirementSchema>;

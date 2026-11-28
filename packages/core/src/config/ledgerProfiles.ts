@@ -206,6 +206,47 @@ export const ledgerAccountantProfile: ProfileConfig = {
       respond: "tool",
       done: "Estos son los gastos pendientes del cliente.",
     },
+    {
+      id: "gastos-de-cliente",
+      description:
+        "Gastos de un cliente del contador, con periodo y estado opcionales",
+      requires: [
+        {
+          name: "cliente",
+          extractor: "cliente",
+          ask: "¿De qué cliente? Dame su nombre completo o su ID.",
+          retry:
+            "No encuentro ese cliente en tu cuenta. Dame su nombre completo o su ID tal como aparece en la lista de clientes.",
+        },
+        {
+          name: "periodo",
+          extractor: "periodo",
+          ask: "¿De qué mes o trimestre?",
+          optional: true,
+        },
+        {
+          name: "estado",
+          extractor: "estado",
+          ask: "¿Qué estado?",
+          optional: true,
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_ACCOUNTANT_CELL,
+          tool: "list_client_expenses",
+          args: {
+            tenantId: "$requires.cliente",
+            periodo: "$requires.periodo",
+            estado: "$requires.estado",
+          },
+        },
+      ],
+      respond: "tool",
+      view: "table",
+      done: "Estos son los gastos del cliente.",
+    },
   ],
 };
 

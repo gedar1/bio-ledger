@@ -21,7 +21,7 @@ Antes de tocar archivos, responde estas preguntas sobre la pregunta que quieres 
 1. **¿La respuesta sale siempre de los mismos pasos?** Una lista, un total o un estado sí. Una explicación no.
 2. **¿Existe una herramienta que haga el trabajo en un solo paso?** Si necesitas dos herramientas, Jev tiende a proponer la secuencia de dos pasos, y el gate no la reconoce a menos que declares exactamente esa secuencia.
 3. **¿Qué datos necesita la herramienta y de dónde salen?** Si no hay datos, la cadena es más simple. Si hay datos, cada uno debe salir de un extractor.
-4. **¿Hay un solo dato variable?** `requires` admite como máximo uno. Dos datos variables (por ejemplo periodo y estado) no caben en una cadena: esa pregunta va al modelo.
+4. **¿Cuántos datos variables tiene la pregunta?** `requires` admite hasta tres. Un dato obligatorio se pide en orden; uno con `optional: true` se omite si no llega. Si la pregunta necesita más de tres, va al modelo.
 5. **¿La respuesta se puede dar con el texto de la herramienta?** Si sí, usa `respond: "tool"`. Si la respuesta necesita redactarse, no es candidata.
 
 Si alguna respuesta es "no", la pregunta se queda en el modelo. Anótalo y sigue con la siguiente.
@@ -93,7 +93,7 @@ En `config/ledgerProfiles.ts`, dentro de `chains` del perfil que corresponda (`l
 {
   id: "estado-de-cuenta",                    // único dentro del perfil
   description: "Estado de cuenta del cliente para un mes o trimestre",
-  requires: [                                 // como máximo un dato
+  requires: [                                 // hasta tres datos; optional: true no pregunta si falta
     { name: "periodo", extractor: "periodo", ask: "¿De qué mes o trimestre quieres el estado de cuenta?" },
   ],
   setup: [],                                  // SQL de infraestructura; casi nunca se usa
@@ -108,7 +108,9 @@ En `config/ledgerProfiles.ts`, dentro de `chains` del perfil que corresponda (`l
 Reglas de cada campo:
 
 - **`id`**: minúsculas, números y guion. Sin repetir dentro del perfil.
-- **`requires`**: `name` en minúsculas y guion bajo; `extractor` debe existir en `EXTRACTOR_NAMES`.
+- **`requires`**: `name` en minúsculas y guion bajo, sin repetir; `extractor` debe existir en `EXTRACTOR_NAMES`. Hasta tres datos.
+- **`optional: true`**: si el mensaje no trae el dato, no se pregunta y el paso recibe el argumento como `undefined`.
+- **`retry`**: mensaje cuando la respuesta a `ask` no sirve. La consulta sigue pendiente y se pregunta de nuevo. Tras dos respuestas que no sirven, la consulta se descarta con un aviso.
 - **`steps[].cell`**: debe estar en `allowedCells` del perfil. Si no, el perfil no arranca.
 - **`args`**: valores literales, o `$requires.<nombre>`, `$previous` o `$now`. El nombre después de `$requires.` debe coincidir con `requires[].name`.
 - **`respond`**: `"tool"` usa el texto de la última herramienta. Si no hay texto, se usa `done`.
@@ -123,7 +125,7 @@ Reglas de cada campo:
 
 ## Paso 4: validación automática
 
-Al arrancar, `registerDomainProfile` valida cada perfil con zod. Si una cadena no cumple el esquema, el perfil no se registra y el error aparece en el arranque. Errores típicos: `id` con mayúsculas, `name` con guion, `requires` con más de un dato.
+Al arrancar, `registerDomainProfile` valida cada perfil con zod. Si una cadena no cumple el esquema, el perfil no se registra y el error aparece en el arranque. Errores típicos: `id` con mayúsculas, `name` con guion, `requires` con más de tres datos, nombres repetidos, o un `$requires.x` en `args` que no está declarado en `requires`.
 
 ## Paso 5: pruebas
 
@@ -188,7 +190,7 @@ El texto de la herramienta sigue existiendo para el modelo. Cuando la cadena pro
 - [ ] El prompt del agente (`ledger-agent-cliente.md` o `ledger-agent-contador.md`) menciona la herramienta entre comillas invertidas. La prueba `agentPrompts.spec.ts` lo verifica.
 - [ ] Si hay dato, el extractor devuelve `null` en ambigüedad y tiene pruebas.
 - [ ] Si la cadena es de filtro, la cadena sin filtro declara `avoidTerms` con esos términos, y la prueba `gastosPorEstado.spec.ts` (o equivalente) lo verifica.
-- [ ] La cadena tiene `id` único, `requires` de máximo un dato y células en `allowedCells`.
+- [ ] La cadena tiene `id` único, `requires` de máximo tres datos sin nombres repetidos y células en `allowedCells`.
 - [ ] Hay pruebas del extractor, de la declaración y de la herramienta.
 - [ ] El build y la suite pasan.
 - [ ] En vivo: `executionChain` coincide, `source: jev-chain` aparece, y no hay tokens nuevos.

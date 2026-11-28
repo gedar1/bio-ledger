@@ -6,6 +6,7 @@
 import type {
   IPendingChainStore,
   PendingChainRequest,
+  PendingState,
 } from "./IPendingChainStore.js";
 
 /** Tiempo de vida por defecto de una ejecución pendiente: 24 horas. */
@@ -24,11 +25,17 @@ export class DefaultPendingChainStore implements IPendingChainStore {
     this.now = now;
   }
 
-  set(sessionId: string, chainId: string, attempts = 0): void {
+  set(
+    sessionId: string,
+    chainId: string,
+    state: Partial<PendingState> = {},
+  ): void {
     this.entries.set(sessionId, {
       chainId,
       expiresAt: this.now() + this.ttlMs,
-      attempts,
+      attempts: state.attempts ?? 0,
+      values: state.values ?? {},
+      missing: state.missing ?? null,
     });
   }
 
