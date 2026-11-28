@@ -24,10 +24,11 @@ export class DefaultPendingChainStore implements IPendingChainStore {
     this.now = now;
   }
 
-  set(sessionId: string, chainId: string): void {
+  set(sessionId: string, chainId: string, attempts = 0): void {
     this.entries.set(sessionId, {
       chainId,
       expiresAt: this.now() + this.ttlMs,
+      attempts,
     });
   }
 

@@ -39,6 +39,11 @@ export const ChainRequirementSchema = z.object({
   extractor: z.enum(EXTRACTOR_NAMES),
   /** Pregunta que se hace al usuario cuando el mensaje no trae el dato. */
   ask: z.string().min(1),
+  /**
+   * Mensaje cuando la respuesta a `ask` no sirve (por ejemplo, un cliente que no existe).
+   * Si está, la consulta sigue pendiente y se repite. Si no, la consulta se descarta.
+   */
+  retry: z.string().min(1).optional(),
 });
 
 export const ChainDefinitionSchema = z.object({

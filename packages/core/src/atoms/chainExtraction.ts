@@ -14,6 +14,13 @@
 export const CHAIN_MIN_SIMILARITY = 0.7;
 
 /** Aviso cuando hay una ejecución pendiente y el siguiente mensaje no trae el dato requerido. */
+/** Respuestas que no sirven antes de descartar la consulta pendiente. */
+export const MAX_PENDING_ATTEMPTS = 2;
+
+/** Mensaje cuando se agotan los intentos de una consulta pendiente. */
+export const PENDING_GAVE_UP_WARNING =
+  "No pude identificar el dato después de varios intentos. Vuelve a enviar tu instrucción completa.";
+
 export const PENDING_DISCARDED_WARNING =
   "Descarté la ejecución pendiente porque el mensaje no trae el dato que necesitaba. Envía de nuevo tu instrucción con ese dato.";
 
@@ -85,7 +92,10 @@ export function resolveText(
 
 /** Quita acentos y pasa a minúsculas, para comparar términos sin depender de la tilde. */
 const normalizeForMatch = (text: string): string =>
-  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 
 /**
  * Indica si el texto menciona alguno de los términos. Sin acentos y sin distinguir mayúsculas.
