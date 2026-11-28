@@ -6,7 +6,12 @@
  * el gasto deja de sumar en el estado de cuenta.
  */
 
-export const EXPENSE_STATES = ["PENDIENTE", "APROBADO", "RECHAZADO", "ANULADO"] as const;
+export const EXPENSE_STATES = [
+  "PENDIENTE",
+  "APROBADO",
+  "RECHAZADO",
+  "ANULADO",
+] as const;
 export type ExpenseState = (typeof EXPENSE_STATES)[number];
 
 export const EXPENSE_CREATORS = ["ACCOUNTANT", "CLIENT"] as const;
@@ -20,7 +25,10 @@ export type BtwRate = (typeof BTW_RATES)[number];
 export const MIN_REJECTION_NOTE_LENGTH = 3;
 
 /** El cliente solo edita sus propios gastos mientras siguen pendientes. */
-export function canClientModify(state: ExpenseState, creator: ExpenseCreator): boolean {
+export function canClientModify(
+  state: ExpenseState,
+  creator: ExpenseCreator,
+): boolean {
   return state === "PENDIENTE" && creator === "CLIENT";
 }
 

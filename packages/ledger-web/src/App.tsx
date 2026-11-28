@@ -1,17 +1,39 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { ClientsPage } from "./pages/accountant/ClientsPage";
-import { ReviewPage } from "./pages/accountant/ReviewPage";
-import { StatementPage } from "./pages/StatementPage";
-import { ChatPage } from "./pages/client/ChatPage";
-import { ExpensesPage } from "./pages/client/ExpensesPage";
-import { LoginPage } from "./pages/LoginPage";
-import { clearSession, loadSession, type Session } from "./session";
+import {
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 
-const LANGUAGES = ["nl", "es", "en"] as const;
+import {
+  changeLanguageOption,
+  clearSession,
+  LANGUAGES,
+  loadSession,
+  type Session,
+} from "./shared";
+import {
+  AccountantChatPage,
+  ChatPage,
+  ClientsPage,
+  ExpensesPage,
+  LoginPage,
+  ReviewPage,
+  StatementPage,
+} from "./pages";
+import "./App.css";
 
-function Shell({ session, children }: { session: Session; children: ReactNode }) {
+function Shell({
+  session,
+  children,
+}: Readonly<{
+  session: Session;
+  children: ReactNode;
+}>) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [, force] = useState(0);
@@ -22,8 +44,7 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
   }
 
   function changeLanguage(lang: (typeof LANGUAGES)[number]) {
-    localStorage.setItem("ledger.lang", lang);
-    void i18n.changeLanguage(lang);
+    changeLanguageOption(lang);
     force((n) => n + 1);
   }
 
@@ -38,9 +59,14 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
             <span className="font-serif text-xl">{t("app.name")}</span>
             <nav className="flex gap-6">
               {session.role === "accountant" ? (
-                <NavLink to="/contador/clientes" className={link}>
-                  {t("nav.clients")}
-                </NavLink>
+                <>
+                  <NavLink to="/contador/clientes" className={link}>
+                    {t("nav.clients")}
+                  </NavLink>
+                  <NavLink to="/contador/asistente" className={link}>
+                    {t("nav.chat")}
+                  </NavLink>
+                </>
               ) : (
                 <>
                   <NavLink to="/cliente/gastos" className={link}>
@@ -60,7 +86,9 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
             <select
               aria-label="language"
               value={i18n.language}
-              onChange={(e) => changeLanguage(e.target.value as (typeof LANGUAGES)[number])}
+              onChange={(e) =>
+                changeLanguage(e.target.value as (typeof LANGUAGES)[number])
+              }
               className="h-9 rounded-lg border border-hairline-strong bg-canvas px-2 text-sm"
             >
               {LANGUAGES.map((lang) => (
@@ -69,7 +97,11 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
                 </option>
               ))}
             </select>
-            <button type="button" onClick={logout} className="text-sm text-steel hover:text-ink">
+            <button
+              type="button"
+              onClick={logout}
+              className="text-sm text-steel hover:text-ink"
+            >
               {t("nav.logout")}
             </button>
           </div>
@@ -83,7 +115,8 @@ function Shell({ session, children }: { session: Session; children: ReactNode })
 /** Solo entra un token de contador; un cliente se envía a su pantalla. */
 function AccountantRoute({ session }: { session: Session | null }) {
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "accountant") return <Navigate to="/cliente/gastos" replace />;
+  if (session.role !== "accountant")
+    return <Navigate to="/cliente/gastos" replace />;
   return (
     <Shell session={session}>
       <ClientsPage token={session.token} />
@@ -95,10 +128,15 @@ function AccountantRoute({ session }: { session: Session | null }) {
 function AccountantStatementRoute({ session }: { session: Session | null }) {
   const { tenantId = "" } = useParams();
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "accountant") return <Navigate to="/cliente/gastos" replace />;
+  if (session.role !== "accountant")
+    return <Navigate to="/cliente/gastos" replace />;
   return (
     <Shell session={session}>
-      <StatementPage role="accountant" token={session.token} tenantId={tenantId} />
+      <StatementPage
+        role="accountant"
+        token={session.token}
+        tenantId={tenantId}
+      />
     </Shell>
   );
 }
@@ -106,7 +144,8 @@ function AccountantStatementRoute({ session }: { session: Session | null }) {
 /** Estado de cuenta del propio cliente. */
 function ClientStatementRoute({ session }: { session: Session | null }) {
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "client") return <Navigate to="/contador/clientes" replace />;
+  if (session.role !== "client")
+    return <Navigate to="/contador/clientes" replace />;
   return (
     <Shell session={session}>
       <StatementPage role="client" token={session.token} />
@@ -115,9 +154,21 @@ function ClientStatementRoute({ session }: { session: Session | null }) {
 }
 
 /** Chat del cliente con el asistente. */
-function ClientChatRoute({ session }: { session: Session | null }) {
+function AccountantChatRoute({ session }: { session: Session | null }) {
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "client") return <Navigate to="/contador/clientes" replace />;
+  if (session.role !== "accountant")
+    return <Navigate to="/cliente/gastos" replace />;
+  return (
+    <Shell session={session}>
+      <AccountantChatPage token={session.token} />
+    </Shell>
+  );
+}
+
+function ClientChatRoute({ session }: Readonly<{ session: Session | null }>) {
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role !== "client")
+    return <Navigate to="/contador/clientes" replace />;
   return (
     <Shell session={session}>
       <ChatPage token={session.token} />
@@ -129,7 +180,8 @@ function ClientChatRoute({ session }: { session: Session | null }) {
 function AccountantReviewRoute({ session }: { session: Session | null }) {
   const { tenantId = "" } = useParams();
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "accountant") return <Navigate to="/cliente/gastos" replace />;
+  if (session.role !== "accountant")
+    return <Navigate to="/cliente/gastos" replace />;
   return (
     <Shell session={session}>
       <ReviewPage token={session.token} tenantId={tenantId} />
@@ -138,9 +190,10 @@ function AccountantReviewRoute({ session }: { session: Session | null }) {
 }
 
 /** Solo entra un token de cliente; sin cambio de contraseña pendiente. */
-function ClientRoute({ session }: { session: Session | null }) {
+function ClientRoute({ session }: Readonly<{ session: Session | null }>) {
   if (!session) return <Navigate to="/login" replace />;
-  if (session.role !== "client") return <Navigate to="/contador/clientes" replace />;
+  if (session.role !== "client")
+    return <Navigate to="/contador/clientes" replace />;
   return (
     <Shell session={session}>
       <ExpensesPage token={session.token} />
@@ -153,13 +206,49 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/contador/clientes" element={<AccountantRoute session={session} />} />
-      <Route path="/contador/clientes/:tenantId" element={<AccountantReviewRoute session={session} />} />
-      <Route path="/cliente/gastos" element={<ClientRoute session={session} />} />
-      <Route path="/cliente/estado" element={<ClientStatementRoute session={session} />} />
-      <Route path="/cliente/chat" element={<ClientChatRoute session={session} />} />
-      <Route path="/contador/clientes/:tenantId/estado" element={<AccountantStatementRoute session={session} />} />
-      <Route path="*" element={<Navigate to={session ? (session.role === "accountant" ? "/contador/clientes" : "/cliente/gastos") : "/login"} replace />} />
+      <Route
+        path="/contador/clientes"
+        element={<AccountantRoute session={session} />}
+      />
+      <Route
+        path="/contador/clientes/:tenantId"
+        element={<AccountantReviewRoute session={session} />}
+      />
+      <Route
+        path="/cliente/gastos"
+        element={<ClientRoute session={session} />}
+      />
+      <Route
+        path="/cliente/estado"
+        element={<ClientStatementRoute session={session} />}
+      />
+      <Route
+        path="/cliente/chat"
+        element={<ClientChatRoute session={session} />}
+      />
+      <Route
+        path="/contador/clientes/:tenantId/estado"
+        element={<AccountantStatementRoute session={session} />}
+      />
+      <Route
+        path="/contador/asistente"
+        element={<AccountantChatRoute session={session} />}
+      />
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={
+              session
+                ? session.role === "accountant"
+                  ? "/contador/clientes"
+                  : "/cliente/gastos"
+                : "/login"
+            }
+            replace
+          />
+        }
+      />
     </Routes>
   );
 }

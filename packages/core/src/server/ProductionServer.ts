@@ -36,7 +36,7 @@ import {
   getSingleTenantId,
 } from "../config/deploymentMode.js";
 import { isAuthEnabled } from "./middleware/apiAuth.js";
-import { openApiProblem } from "../atoms/startupGuard.js";
+import { openApiProblem, tenantProfileProblem } from "../atoms/startupGuard.js";
 import { TenantRegistryService } from "./services/TenantRegistryService.js";
 import { UsageMetricsCollector } from "./services/UsageMetricsCollector.js";
 import { HealthStatusCalculator } from "./services/HealthStatusCalculator.js";
@@ -44,6 +44,7 @@ import { AlertService } from "./services/AlertService.js";
 import { AuditLogger } from "./services/AuditLogger.js";
 import { TenantAuthService } from "./services/TenantAuthService.js";
 import { registerLedgerProfiles } from "../config/ledgerProfiles.js";
+import { getAvailableProfiles } from "../config/profileRegistry.js";
 import { AccountantAuthService } from "./services/AccountantAuthService.js";
 import { LoginRateLimiter } from "./middleware/loginRateLimiter.js";
 import Database from "better-sqlite3";
@@ -216,6 +217,14 @@ async function main() {
   });
   if (startupProblem) {
     log.error(startupProblem);
+    process.exit(1);
+  }
+  const profileProblem = tenantProfileProblem(
+    process.env.TENANT_PROFILE,
+    Object.keys(getAvailableProfiles()),
+  );
+  if (profileProblem) {
+    log.error(profileProblem);
     process.exit(1);
   }
 

@@ -14,12 +14,16 @@ import {
   getDefaultProfile,
 } from "../config/profileRegistry.js";
 import { sessionKey } from "../atoms/chatProfiles.js";
+import type { ToolGuard } from "../atoms/accountantScope.js";
+import type { ClienteRef } from "../atoms/clienteExtraction.js";
+import { SIN_CONTEXTO } from "../atoms/chainSpec.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getModuleDir, resolveDataPath } from "../atoms/paths.js";
 import type { TenantRegistryService } from "./services/TenantRegistryService.js";
 import type { IUsageMetricsSink } from "../system/interfaces/IUsageMetricsSink.js";
 import type { CircuitState } from "../infrastructure/CircuitBreaker.js";
+import type { ChatView } from "../atoms/chatView.js";
 
 const __dirname = getModuleDir(import.meta.url);
 
@@ -73,6 +77,14 @@ class TenantOrganism extends BaseOrganisms {
   }
 }
 
+/** Opciones de un turno de chat: alcance de herramientas y contexto que lee el modelo. */
+export interface ChatTurnOptions {
+  toolGuard?: ToolGuard;
+  turnContext?: string;
+  /** Clientes de la cuenta para los extractores de cadenas (cliente, por nombre o ID). */
+  clientes?: readonly ClienteRef[];
+}
+
 export interface TenantInfo {
   id: string;
   cortex: UnifiedCortex;
@@ -81,6 +93,8 @@ export interface TenantInfo {
   lastActivity: number;
   /** When true, the session should reload its cell configuration on next request */
   needsReload: boolean;
+  /** Último contexto por turno que se añadió al historial; evita repetirlo en cada mensaje. */
+  lastTurnContext?: string;
   /** Organismo que controla la célula del tenant */
   organism?: TenantOrganism;
 }
@@ -89,6 +103,12 @@ export interface TenantInfo {
  * Gestiona múltiples tenants (clientes), cada uno con su propio
  * Cortex, organismos, historial y estado de célula aislados.
  */
+/** Respuesta de un turno del chat: el texto y la última vista de datos de la sesión. */
+export interface ChatResult {
+  text: string;
+  view: ChatView | null;
+}
+
 export class TenantManager {
   readonly tenants: Map<string, TenantInfo> = new Map();
   private readonly maxTenants: number;
@@ -114,7 +134,10 @@ export class TenantManager {
    * @param tenantId - Identificador único del tenant
    * @param profileName - Perfil de dominio (default: env TENANT_PROFILE o el perfil editable)
    */
-  async getTenant(tenantId: string, requestedProfile?: string): Promise<TenantInfo> {
+  async getTenant(
+    tenantId: string,
+    requestedProfile?: string,
+  ): Promise<TenantInfo> {
     const profileName = this.resolveKnownProfile(tenantId, requestedProfile);
     const key = sessionKey(tenantId, profileName);
     const existing = this.tenants.get(key);
@@ -174,7 +197,6 @@ export class TenantManager {
       tenantLimits: this.registry ?? undefined,
       chains: composedProfiles[profile]?.chains ?? [],
     });
-
 
     const organism = new TenantOrganism(tenantId, allowedCells);
     cortex.registerOrganism(organism);
@@ -258,19 +280,58 @@ export class TenantManager {
   /**
    * Envía un mensaje al Cortex de un tenant.
    */
-  async chat(tenantId: string, message: string, profile?: string): Promise<string> {
+  async chat(
+    tenantId: string,
+    message: string,
+    profile?: string,
+  ): Promise<string> {
+    return (await this.chatWithView(tenantId, message, profile)).text;
+  }
+
+  /**
+   * Igual que chat, pero devuelve también la última vista de datos de la sesión.
+   * `options.toolGuard` limita las herramientas del turno. `options.turnContext` añade un
+   * mensaje de sistema al historial solo cuando cambia respecto al turno anterior.
+   */
+  async chatWithView(
+    tenantId: string,
+    message: string,
+    profile?: string,
+    options: ChatTurnOptions = {},
+  ): Promise<ChatResult> {
     const release = await this.acquireTenant(sessionKey(tenantId, profile));
     try {
       const tenant = await this.getTenant(tenantId, profile);
       tenant.lastActivity = Date.now();
+      if (
+        options.turnContext &&
+        options.turnContext !== tenant.lastTurnContext
+      ) {
+        tenant.cortex.addHistoryMessage(tenant.cortex.getSessionId(), {
+          role: "system",
+          content: options.turnContext,
+          timestamp: Date.now(),
+        });
+        tenant.lastTurnContext = options.turnContext;
+      }
       const beforeSize = tenant.cortex.getHistory().length;
-      await tenant.cortex.chat(message);
+      tenant.cortex.setToolGuard(options.toolGuard ?? null);
+      tenant.cortex.setExtractorContext({ clientes: options.clientes ?? [] });
+      try {
+        await tenant.cortex.chat(message);
+      } finally {
+        tenant.cortex.setToolGuard(null);
+        tenant.cortex.setExtractorContext(SIN_CONTEXTO);
+      }
       const messages = tenant.cortex.getHistory();
       const assistantMsg = messages
         .slice(beforeSize)
         .filter((entry) => entry.role === "assistant")
         .pop();
-      return assistantMsg?.content || "Sin respuesta";
+      return {
+        text: assistantMsg?.content || "Sin respuesta",
+        view: tenant.cortex.currentView(),
+      };
     } finally {
       release();
     }
@@ -296,11 +357,18 @@ export class TenantManager {
   }
 
   /** Perfil pedido si está registrado; si no, la sesión por defecto del tenant. */
-  private resolveKnownProfile(tenantId: string, requested?: string): string | undefined {
+  private resolveKnownProfile(
+    tenantId: string,
+    requested?: string,
+  ): string | undefined {
     if (!requested) return undefined;
-    const known = getAvailableProfiles()[requested] ?? tenantProfiles.profiles[requested];
+    const known =
+      getAvailableProfiles()[requested] ?? tenantProfiles.profiles[requested];
     if (known) return requested;
-    log.warn({ tenantId, profile: requested }, "Perfil no registrado; se usa la sesión por defecto");
+    log.warn(
+      { tenantId, profile: requested },
+      "Perfil no registrado; se usa la sesión por defecto",
+    );
     return undefined;
   }
 

@@ -229,3 +229,64 @@ export function categoryTotals(
         b.total_cents - a.total_cents || a.nombre.localeCompare(b.nombre),
     );
 }
+
+/** Gasto con los campos que necesita el cálculo del más caro. */
+export type LargestCandidate = StatementExpense & {
+  id: number;
+  concepto: string;
+};
+
+/**
+ * Gasto de mayor importe del periodo, entre aprobados y pendientes. Rechazados y anulados
+ * no cuentan. En empate gana el más antiguo. Devuelve null si no hay ninguno.
+ */
+export function largestExpense<T extends LargestCandidate>(
+  period: StatementPeriod,
+  expenses: readonly T[],
+): T | null {
+  let best: T | null = null;
+  for (const e of expenses) {
+    if (e.fecha < period.desde || e.fecha > period.hasta) continue;
+    if (e.estado !== "APROBADO" && e.estado !== "PENDIENTE") continue;
+    if (
+      best === null ||
+      e.importe_cents > best.importe_cents ||
+      (e.importe_cents === best.importe_cents && e.fecha < best.fecha)
+    ) {
+      best = e;
+    }
+  }
+  return best;
+}
+
+/** Código del mes actual en formato AAAA-MM, según la fecha de `now`. */
+export function currentMonthCode(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Gastado (aprobado más pendiente) de un mes: la etiqueta es AAAA-MM. */
+export interface MonthlyTotal {
+  label: string;
+  cents: number;
+}
+
+/**
+ * Gastado por mes del año: siempre doce puntos, de enero a diciembre, aunque algún mes esté en cero.
+ * Rechazados y anulados no cuentan.
+ */
+export function monthlyTotals(
+  year: number,
+  expenses: readonly StatementExpense[],
+): MonthlyTotal[] {
+  const cents = Array.from({ length: 12 }, () => 0);
+  for (const e of expenses) {
+    if (e.estado !== "APROBADO" && e.estado !== "PENDIENTE") continue;
+    if (Number(e.fecha.slice(0, 4)) !== year) continue;
+    const month = Number(e.fecha.slice(5, 7));
+    if (month >= 1 && month <= 12) cents[month - 1] += e.importe_cents;
+  }
+  return cents.map((value, index) => ({
+    label: `${year}-${String(index + 1).padStart(2, "0")}`,
+    cents: value,
+  }));
+}

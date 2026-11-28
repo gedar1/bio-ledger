@@ -72,3 +72,28 @@ export function extractUrl(text: string): string | null {
     return null;
   }
 }
+
+export function resolveText(
+  template: string,
+  values: Readonly<Record<string, string>>,
+): string {
+  return template.replace(
+    /\$requires\.([a-zA-Z0-9_-]+)/g,
+    (_, name: string) => values[name] ?? `$requires.${name}`,
+  );
+}
+
+/** Quita acentos y pasa a minúsculas, para comparar términos sin depender de la tilde. */
+const normalizeForMatch = (text: string): string =>
+  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+
+/**
+ * Indica si el texto menciona alguno de los términos. Sin acentos y sin distinguir mayúsculas.
+ * Se usa para que una cadena no responda una pregunta con filtro, por ejemplo un estado.
+ *
+ * @example mentionsAny("cuáles son mis gastos aprobados", ["aprobad"]) // → true
+ */
+export function mentionsAny(text: string, terms: readonly string[]): boolean {
+  const normalized = normalizeForMatch(text);
+  return terms.some((term) => normalized.includes(normalizeForMatch(term)));
+}

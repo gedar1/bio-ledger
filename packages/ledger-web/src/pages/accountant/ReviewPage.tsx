@@ -2,64 +2,32 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { apiPost, ApiRequestError } from "../../api";
-import { parseEuroToCents } from "../client/ExpensesPage";
-
-interface Category {
-  id: number;
-  nombre: string;
-  deducible: boolean | null;
-}
-
-interface Expense {
-  id: number;
-  fecha: string;
-  importe_cents: number;
-  tasa_btw: 0 | 9 | 21;
-  concepto: string;
-  categoria_id: number;
-  estado: "PENDIENTE" | "APROBADO" | "RECHAZADO" | "ANULADO";
-  creado_por: "CLIENT" | "ACCOUNTANT";
-  con_soporte: boolean;
-  nota_rechazo: string | null;
-  nota_anulacion: string | null;
-}
-
-interface ExpenseForm {
-  fecha: string;
-  amount: string;
-  tasa_btw: 0 | 9 | 21;
-  concepto: string;
-  categoria_id: number | "";
-  con_soporte: boolean;
-}
-
-const VAT_RATES = [0, 9, 21] as const;
-
-const emptyForm = (): ExpenseForm => ({
-  fecha: new Date().toISOString().slice(0, 10),
-  amount: "",
-  tasa_btw: 21,
-  concepto: "",
-  categoria_id: "",
-  con_soporte: false,
-});
+import { emptyForm, parseEuroToCents, VAT_RATES } from "@/shared";
+import type { Category, Expense, ExpenseForm } from "@/types";
 
 function ExpenseFields({
   form,
   setForm,
   categories,
-}: {
+}: Readonly<{
   form: ExpenseForm;
   setForm: (next: ExpenseForm) => void;
   categories: Category[];
-}) {
+}>) {
   const { t } = useTranslation();
-  const field = "h-11 rounded-lg border border-hairline-strong px-3 text-ink focus:border-2 focus:border-primary focus:outline-none";
+  const field =
+    "h-11 rounded-lg border border-hairline-strong px-3 text-ink focus:border-2 focus:border-primary focus:outline-none";
   return (
     <>
       <label className="flex flex-col gap-1 text-sm text-slate">
         {t("expenses.date")}
-        <input type="date" required value={form.fecha} onChange={(e) => setForm({ ...form, fecha: e.target.value })} className={field} />
+        <input
+          type="date"
+          required
+          value={form.fecha}
+          onChange={(e) => setForm({ ...form, fecha: e.target.value })}
+          className={field}
+        />
       </label>
       <label className="flex flex-col gap-1 text-sm text-slate">
         {t("expenses.amount")}
@@ -76,7 +44,12 @@ function ExpenseFields({
         {t("expenses.vat")}
         <select
           value={form.tasa_btw}
-          onChange={(e) => setForm({ ...form, tasa_btw: Number(e.target.value) as ExpenseForm["tasa_btw"] })}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              tasa_btw: Number(e.target.value) as ExpenseForm["tasa_btw"],
+            })
+          }
           className="h-11 rounded-lg border border-hairline-strong bg-canvas px-3 text-ink"
         >
           {VAT_RATES.map((rate) => (
@@ -91,7 +64,12 @@ function ExpenseFields({
         <select
           required
           value={form.categoria_id}
-          onChange={(e) => setForm({ ...form, categoria_id: e.target.value === "" ? "" : Number(e.target.value) })}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              categoria_id: e.target.value === "" ? "" : Number(e.target.value),
+            })
+          }
           className="h-11 rounded-lg border border-hairline-strong bg-canvas px-3 text-ink"
         >
           <option value="" />
@@ -104,17 +82,32 @@ function ExpenseFields({
       </label>
       <label className="flex flex-col gap-1 text-sm text-slate md:col-span-2">
         {t("expenses.concept")}
-        <input required value={form.concepto} onChange={(e) => setForm({ ...form, concepto: e.target.value })} className={field} />
+        <input
+          required
+          value={form.concepto}
+          onChange={(e) => setForm({ ...form, concepto: e.target.value })}
+          className={field}
+        />
       </label>
       <label className="flex items-center gap-2 text-sm text-slate">
-        <input type="checkbox" checked={form.con_soporte} onChange={(e) => setForm({ ...form, con_soporte: e.target.checked })} />
+        <input
+          type="checkbox"
+          checked={form.con_soporte}
+          onChange={(e) => setForm({ ...form, con_soporte: e.target.checked })}
+        />
         {t("expenses.support")}
       </label>
     </>
   );
 }
 
-export function ReviewPage({ token, tenantId }: { token: string; tenantId: string }) {
+export function ReviewPage({
+  token,
+  tenantId,
+}: {
+  token: string;
+  tenantId: string;
+}) {
   const { t } = useTranslation();
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[] | null>(null);
@@ -122,7 +115,10 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<ExpenseForm>(emptyForm);
   /** Acción que pide una nota: rechazar o anular, con el id del gasto. */
-  const [noteFor, setNoteFor] = useState<{ id: number; action: "RECHAZADO" | "ANULADO" } | null>(null);
+  const [noteFor, setNoteFor] = useState<{
+    id: number;
+    action: "RECHAZADO" | "ANULADO";
+  } | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -144,8 +140,16 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
   const load = useCallback(async () => {
     try {
       const [cats, list] = await Promise.all([
-        apiPost<{ categories: Category[] }>("ledger/accountant/categories/list", { tenant_id: tenantId }, token),
-        apiPost<{ expenses: Expense[] }>("ledger/accountant/expenses/list", { tenant_id: tenantId }, token),
+        apiPost<{ categories: Category[] }>(
+          "ledger/accountant/categories/list",
+          { tenant_id: tenantId },
+          token,
+        ),
+        apiPost<{ expenses: Expense[] }>(
+          "ledger/accountant/expenses/list",
+          { tenant_id: tenantId },
+          token,
+        ),
       ]);
       setCategories(cats.categories);
       setExpenses(list.expenses);
@@ -162,7 +166,8 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
   function messageFor(err: unknown): string {
     if (err instanceof ApiRequestError) {
       if (err.info.status === 409) return t("review.alreadyDecided");
-      if (err.info.status === 422) return err.info.message || t("errors.generic");
+      if (err.info.status === 422)
+        return err.info.message || t("errors.generic");
     }
     return t("errors.generic");
   }
@@ -206,8 +211,8 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
       amount: (expense.importe_cents / 100).toFixed(2).replace(".", ","),
       tasa_btw: expense.tasa_btw,
       concepto: expense.concepto,
-      categoria_id: expense.categoria_id,
-      con_soporte: expense.con_soporte,
+      categoria_id: expense.categoria_id ?? "",
+      con_soporte: expense.con_soporte ?? false,
     });
   }
 
@@ -217,7 +222,11 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
     const body = bodyFrom(editForm);
     if (!body) return;
     try {
-      await apiPost("ledger/accountant/expenses/update", { ...body, id }, token);
+      await apiPost(
+        "ledger/accountant/expenses/update",
+        { ...body, id },
+        token,
+      );
       setEditingId(null);
       await load();
     } catch (err) {
@@ -225,10 +234,18 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
     }
   }
 
-  async function decide(id: number, decision: "APROBADO" | "RECHAZADO", decisionNote?: string) {
+  async function decide(
+    id: number,
+    decision: "APROBADO" | "RECHAZADO",
+    decisionNote?: string,
+  ) {
     setError(null);
     try {
-      await apiPost("ledger/accountant/expenses/decide", { tenant_id: tenantId, id, decision, note: decisionNote }, token);
+      await apiPost(
+        "ledger/accountant/expenses/decide",
+        { tenant_id: tenantId, id, decision, note: decisionNote },
+        token,
+      );
       setNoteFor(null);
       setNote("");
       await load();
@@ -240,7 +257,11 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
   async function annul(id: number, annulNote: string) {
     setError(null);
     try {
-      await apiPost("ledger/accountant/expenses/annul", { tenant_id: tenantId, id, note: annulNote }, token);
+      await apiPost(
+        "ledger/accountant/expenses/annul",
+        { tenant_id: tenantId, id, note: annulNote },
+        token,
+      );
       setNoteFor(null);
       setNote("");
       await load();
@@ -257,23 +278,42 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
     <section className="flex flex-col gap-8">
       <div className="flex items-baseline justify-between">
         <h2 className="font-serif text-3xl">
-          {t("review.title")}: <span className="font-mono text-2xl">{tenantId}</span>
+          {t("review.title")}:{" "}
+          <span className="font-mono text-2xl">{tenantId}</span>
         </h2>
         <div className="flex gap-6">
-          <Link to={`/contador/clientes/${tenantId}/estado`} className="text-sm text-primary hover:underline">
+          <Link
+            to={`/contador/clientes/${tenantId}/estado`}
+            className="text-sm text-primary hover:underline"
+          >
             {t("nav.statement")}
           </Link>
-          <Link to="/contador/clientes" className="text-sm text-steel hover:text-ink">
-          {t("review.back")}
+          <Link
+            to="/contador/clientes"
+            className="text-sm text-steel hover:text-ink"
+          >
+            {t("review.back")}
           </Link>
         </div>
       </div>
 
-      <form onSubmit={create} className="grid gap-4 rounded-lg border border-hairline-soft p-6 md:grid-cols-2">
-        <h3 className="text-sm font-medium md:col-span-2">{t("review.newForClient")}</h3>
-        <ExpenseFields form={createForm} setForm={setCreateForm} categories={categories} />
+      <form
+        onSubmit={create}
+        className="grid gap-4 rounded-lg border border-hairline-soft p-6 md:grid-cols-2"
+      >
+        <h3 className="text-sm font-medium md:col-span-2">
+          {t("review.newForClient")}
+        </h3>
+        <ExpenseFields
+          form={createForm}
+          setForm={setCreateForm}
+          categories={categories}
+        />
         <div className="flex items-center justify-end md:col-span-2">
-          <button type="submit" className="h-11 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary">
+          <button
+            type="submit"
+            className="h-11 rounded-lg bg-primary px-5 text-sm font-medium text-on-primary"
+          >
             {t("expenses.save")}
           </button>
         </div>
@@ -284,7 +324,10 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
         <p className="mt-1 text-xs text-steel">{t("review.categoriesHint")}</p>
         <ul className="mt-4 divide-y divide-hairline-soft">
           {categories.map((c) => (
-            <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <li
+              key={c.id}
+              className="flex flex-wrap items-center justify-between gap-3 py-3"
+            >
               <span className="text-sm">{c.nombre}</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-steel">
@@ -298,7 +341,9 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                   type="button"
                   onClick={() => void setDeducible(c.id, true)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                    c.deducible === true ? "bg-primary text-on-primary" : "border border-hairline-strong text-slate"
+                    c.deducible === true
+                      ? "bg-primary text-on-primary"
+                      : "border border-hairline-strong text-slate"
                   }`}
                 >
                   {t("review.deducibleYes")}
@@ -307,7 +352,9 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                   type="button"
                   onClick={() => void setDeducible(c.id, false)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
-                    c.deducible === false ? "bg-ink text-white" : "border border-hairline-strong text-slate"
+                    c.deducible === false
+                      ? "bg-ink text-white"
+                      : "border border-hairline-strong text-slate"
                   }`}
                 >
                   {t("review.deducibleNo")}
@@ -328,38 +375,63 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
             <thead className="bg-surface text-steel">
               <tr>
                 <th className="px-4 py-3 font-medium">{t("expenses.date")}</th>
-                <th className="px-4 py-3 font-medium">{t("expenses.concept")}</th>
-                <th className="px-4 py-3 text-right font-medium">{t("expenses.amount")}</th>
+                <th className="px-4 py-3 font-medium">
+                  {t("expenses.concept")}
+                </th>
+                <th className="px-4 py-3 text-right font-medium">
+                  {t("expenses.amount")}
+                </th>
                 <th className="px-4 py-3 font-medium">{t("expenses.state")}</th>
                 <th className="px-4 py-3 font-medium">{t("review.actions")}</th>
               </tr>
             </thead>
             <tbody>
               {expenses.map((e) => (
-                <tr key={e.id} className="border-t border-hairline-soft align-top">
+                <tr
+                  key={e.id}
+                  className="border-t border-hairline-soft align-top"
+                >
                   <td className="px-4 py-3">{e.fecha}</td>
                   <td className="px-4 py-3">
                     {e.concepto}
                     <span className="block text-xs text-steel">
-                      {e.creado_por === "CLIENT" ? t("review.byClient") : t("review.byAccountant")} · {e.tasa_btw}%
+                      {e.creado_por === "CLIENT"
+                        ? t("review.byClient")
+                        : t("review.byAccountant")}{" "}
+                      · {e.tasa_btw}%
                       {!e.con_soporte && ` · ${t("review.noSupport")}`}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {(e.importe_cents / 100).toLocaleString("nl-NL", { style: "currency", currency: "EUR" })}
+                    {(e.importe_cents / 100).toLocaleString("nl-NL", {
+                      style: "currency",
+                      currency: "EUR",
+                    })}
                   </td>
                   <td className="px-4 py-3 text-steel">
                     {t(`expenses.status.${e.estado}`)}
-                    {e.nota_rechazo && <span className="block text-xs">{e.nota_rechazo}</span>}
-                    {e.nota_anulacion && <span className="block text-xs">{e.nota_anulacion}</span>}
+                    {e.nota_rechazo && (
+                      <span className="block text-xs">{e.nota_rechazo}</span>
+                    )}
+                    {e.nota_anulacion && (
+                      <span className="block text-xs">{e.nota_anulacion}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {e.estado === "PENDIENTE" && (
                       <div className="flex flex-wrap gap-2">
-                        <button className={primary} onClick={() => void decide(e.id, "APROBADO")}>
+                        <button
+                          className={primary}
+                          onClick={() => void decide(e.id, "APROBADO")}
+                        >
                           {t("review.approve")}
                         </button>
-                        <button className={ghost} onClick={() => setNoteFor({ id: e.id, action: "RECHAZADO" })}>
+                        <button
+                          className={ghost}
+                          onClick={() =>
+                            setNoteFor({ id: e.id, action: "RECHAZADO" })
+                          }
+                        >
                           {t("review.reject")}
                         </button>
                         <button className={ghost} onClick={() => startEdit(e)}>
@@ -368,7 +440,12 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                       </div>
                     )}
                     {e.estado === "APROBADO" && (
-                      <button className={ghost} onClick={() => setNoteFor({ id: e.id, action: "ANULADO" })}>
+                      <button
+                        className={ghost}
+                        onClick={() =>
+                          setNoteFor({ id: e.id, action: "ANULADO" })
+                        }
+                      >
                         {t("review.annul")}
                       </button>
                     )}
@@ -377,7 +454,8 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                         className="mt-3 flex flex-col gap-2"
                         onSubmit={(event) => {
                           event.preventDefault();
-                          if (noteFor.action === "RECHAZADO") void decide(e.id, "RECHAZADO", note);
+                          if (noteFor.action === "RECHAZADO")
+                            void decide(e.id, "RECHAZADO", note);
                           else void annul(e.id, note);
                         }}
                       >
@@ -390,7 +468,9 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                           className="h-9 rounded-lg border border-hairline-strong px-2 text-sm"
                         />
                         <button type="submit" className={primary}>
-                          {noteFor.action === "RECHAZADO" ? t("review.reject") : t("review.annul")}
+                          {noteFor.action === "RECHAZADO"
+                            ? t("review.reject")
+                            : t("review.annul")}
                         </button>
                       </form>
                     )}
@@ -399,12 +479,20 @@ export function ReviewPage({ token, tenantId }: { token: string; tenantId: strin
                         className="mt-3 grid gap-3 rounded-lg border border-hairline-soft p-4"
                         onSubmit={(event) => void saveEdit(event, e.id)}
                       >
-                        <ExpenseFields form={editForm} setForm={setEditForm} categories={categories} />
+                        <ExpenseFields
+                          form={editForm}
+                          setForm={setEditForm}
+                          categories={categories}
+                        />
                         <div className="flex gap-2">
                           <button type="submit" className={primary}>
                             {t("expenses.save")}
                           </button>
-                          <button type="button" className={ghost} onClick={() => setEditingId(null)}>
+                          <button
+                            type="button"
+                            className={ghost}
+                            onClick={() => setEditingId(null)}
+                          >
                             {t("review.cancel")}
                           </button>
                         </div>

@@ -8,6 +8,7 @@
  */
 
 import { createRequire } from "node:module";
+import { BioCoreError } from "../errors.js";
 
 const require = createRequire(import.meta.url);
 
@@ -20,9 +21,36 @@ interface RegistryFile {
   readonly cells?: readonly RegistryCell[];
 }
 
-const toolDescriptions = require("./tools.json") as Readonly<
-  Record<string, string>
->;
+type ToolDescriptions = Readonly<Record<string, string>>;
+
+/**
+ * Une las descripciones de varios archivos. Un nombre repetido es un error de
+ * configuración: dos archivos no pueden describir la misma herramienta.
+ */
+export function mergeToolDescriptions(
+  sources: readonly ToolDescriptions[],
+): Record<string, string> {
+  const merged: Record<string, string> = {};
+  for (const source of sources) {
+    for (const [name, description] of Object.entries(source)) {
+      if (Object.hasOwn(merged, name)) {
+        throw new BioCoreError(
+          `Herramienta descrita en dos archivos de tools: ${name}`,
+          "TOOL_CONFIGURATION_ERROR",
+          { tool: name },
+        );
+      }
+      merged[name] = description;
+    }
+  }
+  return merged;
+}
+
+/** Motor (`tools.json`) y producto (`domain-tools.json`). */
+const toolDescriptions = mergeToolDescriptions([
+  require("./tools.json") as ToolDescriptions,
+  require("./domain-tools.json") as ToolDescriptions,
+]);
 const registryFiles = [
   require("./registry.json"),
   require("./domain-registry.json"),

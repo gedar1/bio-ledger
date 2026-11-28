@@ -2,32 +2,21 @@
   "_comment": "Registry de tu dominio. Define aquí los tipos de célula específicos de tu caso de uso. Este archivo se fusiona con config/registry.json (core) automáticamente al arrancar. Cambia 'example' al nombre de tu célula y ajusta las tools para que coincidan con los métodos públicos de tu Molécula.",
   "cells": [
     {
-      "type": "example",
-      "_comment": "Cambia 'example' al nombre de tu célula. Ej: 'orders', 'alerts', 'contracts'",
-      "description": "Gestión de registros del dominio: crear, listar, actualizar, eliminar.",
-      "tools": [
-        "create_record",
-        "get_record",
-        "list_records",
-        "update_record_status",
-        "delete_record"
-      ]
-    },
-    {
       "type": "ledger_cliente",
       "description": "Consulta de los gastos del cliente: lista de gastos, estado de cuenta de un periodo y categorías. Solo lectura.",
       "tools": [
         "list_my_expenses",
         "get_my_statement",
         "list_my_categories",
+        "get_my_monthly_totals",
         "get_my_month_statement",
-        "get_my_month_category_totals",
-        "get_my_category_totals"
+        "get_my_category_totals",
+        "get_my_largest_expense"
       ]
     },
     {
       "type": "ledger_contador",
-      "description": "Revisión del contador sobre el cliente seleccionado: gastos pendientes y estado de cuenta con deducible. Solo lectura.",
+      "description": "Revisión del contador sobre un cliente indicado por tenantId: gastos pendientes y estado de cuenta con deducible. Solo lectura.",
       "tools": ["list_pending_expenses", "get_client_statement"]
     }
   ]

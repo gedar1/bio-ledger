@@ -1,11 +1,12 @@
 import {
+  DEFAULT_TENANT_PROFILE,
   registerDomainProfile,
   type ProfileConfig,
 } from "./profileRegistry.js";
 import {
   LEDGER_ACCOUNTANT_CELL,
   LEDGER_CLIENT_CELL,
-} from "./ledgerComposition.js";
+} from "./ledgerCellTypes.js";
 import {
   LEDGER_ACCOUNTANT_PROFILE,
   LEDGER_CLIENT_PROFILE,
@@ -22,10 +23,49 @@ export const ledgerClientProfile: ProfileConfig = {
   chains: [
     {
       id: "mis-gastos",
+      avoidTerms: [
+        "aprobad",
+        "pendient",
+        "rechazad",
+        "anulad",
+        "estado",
+        "goedgekeurd",
+        "behandeling",
+        "afgewezen",
+        "geannuleerd",
+        "approved",
+        "pending",
+        "rejected",
+        "cancelled",
+        "canceled",
+      ],
       description: "Lista los gastos del cliente",
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
       requires: [],
       setup: [],
+      view: "table",
+      respond: "tool",
+      done: "Estos son tus gastos.",
+    },
+    {
+      id: "gastos-por-estado",
+      description:
+        "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
+      requires: [
+        {
+          name: "estado",
+          extractor: "estado",
+          ask: "¿Qué estado quieres ver: aprobados, pendientes, rechazados o anulados?",
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_CLIENT_CELL,
+          tool: "list_my_expenses",
+          args: { estado: "$requires.estado" },
+        },
+      ],
       respond: "tool",
       done: "Estos son tus gastos.",
     },
@@ -38,6 +78,7 @@ export const ledgerClientProfile: ProfileConfig = {
         { cell: LEDGER_CLIENT_CELL, tool: "get_my_month_statement", args: {} },
       ],
       respond: "tool",
+      view: "card",
       done: "Este es tu estado de cuenta del mes.",
     },
     {
@@ -59,8 +100,21 @@ export const ledgerClientProfile: ProfileConfig = {
           args: { periodo: "$requires.periodo" },
         },
       ],
+      view: "card",
       respond: "tool",
       done: "Este es tu estado de cuenta.",
+    },
+    {
+      id: "gasto-por-mes",
+      description: "Gasto del cliente por mes del año en curso, en tabla",
+      requires: [],
+      setup: [],
+      steps: [
+        { cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} },
+      ],
+      respond: "tool",
+      view: "table",
+      done: "Este es tu gasto por mes para este año. Si quieres los gastos de un mes concreto, dime cuál.",
     },
     {
       id: "mis-categorias",
@@ -72,21 +126,6 @@ export const ledgerClientProfile: ProfileConfig = {
       ],
       respond: "tool",
       done: "Estas son tus categorías de gasto actuales.",
-    },
-    {
-      id: "gasto-por-categoria-mes",
-      description: "Gasto del cliente por categoría en el mes actual",
-      requires: [],
-      setup: [],
-      steps: [
-        {
-          cell: LEDGER_CLIENT_CELL,
-          tool: "get_my_month_category_totals",
-          args: {},
-        },
-      ],
-      respond: "tool",
-      done: "Este es tu gasto por categoría del mes.",
     },
     {
       id: "gasto-por-categoria-periodo",
@@ -108,7 +147,30 @@ export const ledgerClientProfile: ProfileConfig = {
         },
       ],
       respond: "tool",
-      done: "Este es tu gasto por categoría del periodo.",
+      view: "table",
+      done: "Te muestro el detalle por categoría en la tabla.",
+    },
+    {
+      id: "gasto-mas-caro",
+      description:
+        "Gasto de mayor importe del cliente en un mes o trimestre indicado",
+      requires: [
+        {
+          name: "periodo",
+          extractor: "periodo",
+          ask: "¿De qué mes o trimestre quieres saber tu gasto más caro?",
+        },
+      ],
+      setup: [],
+      steps: [
+        {
+          cell: LEDGER_CLIENT_CELL,
+          tool: "get_my_largest_expense",
+          args: { periodo: "$requires.periodo" },
+        },
+      ],
+      respond: "tool",
+      done: "Este es tu gasto más caro del periodo.",
     },
   ],
 };
@@ -117,28 +179,48 @@ export const ledgerAccountantProfile: ProfileConfig = {
   allowedCells: [LEDGER_ACCOUNTANT_CELL],
   agentFile: "config/ledger-agent-contador.md",
   description:
-    "Asistente del contador: revisión de gastos y estado de cuenta del cliente seleccionado",
+    "Asistente del contador: revisión de gastos y estado de cuenta de sus clientes, indicados por nombre o ID",
   chains: [
     {
-      id: "gastos-pendientes",
-      description: "Lista los gastos pendientes de revisión del cliente",
+      id: "pendientes-de-cliente",
+      description:
+        "Gastos pendientes de revisión de un cliente del contador, indicado por nombre o ID",
+      requires: [
+        {
+          name: "cliente",
+          extractor: "cliente",
+          ask: "¿De qué cliente? Dame su nombre completo o su ID.",
+        },
+      ],
+      setup: [],
       steps: [
         {
           cell: LEDGER_ACCOUNTANT_CELL,
           tool: "list_pending_expenses",
-          args: {},
+          args: { tenantId: "$requires.cliente" },
         },
       ],
-      requires: [],
-      setup: [],
+      view: "table",
       respond: "tool",
-      done: "Estos son los gastos pendientes.",
+      done: "Estos son los gastos pendientes del cliente.",
     },
   ],
 };
 
 /** Registra los perfiles del chat contable. Llamar una vez al arrancar el servidor. */
+/**
+ * Perfil del tenant: células del producto y prompt neutral. Los roles eligen su perfil de chat
+ * en cada petición; este es el que usa el cortex por defecto del tenant (TENANT_PROFILE).
+ */
+export const ledgerTenantProfile: ProfileConfig = {
+  allowedCells: [LEDGER_CLIENT_CELL, LEDGER_ACCOUNTANT_CELL],
+  agentFile: "config/ledger-agent.md",
+  description: "Aplicación contable: células del cliente y del contador",
+  chains: [],
+};
+
 export function registerLedgerProfiles(): void {
+  registerDomainProfile(DEFAULT_TENANT_PROFILE, ledgerTenantProfile);
   registerDomainProfile(LEDGER_CLIENT_PROFILE, ledgerClientProfile);
   registerDomainProfile(LEDGER_ACCOUNTANT_PROFILE, ledgerAccountantProfile);
 }

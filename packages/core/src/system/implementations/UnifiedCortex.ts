@@ -42,10 +42,14 @@ import type { ITenantTokenLimitReader } from "../interfaces/ITenantTokenLimitRea
 import {
   CHAIN_MIN_SIMILARITY,
   PENDING_DISCARDED_WARNING,
+  mentionsAny,
 } from "../../atoms/chainExtraction.js";
 import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
+import { viewFitsDeclaration } from "../../atoms/chatView.js";
 import {
   EXTRACTORS,
+  SIN_CONTEXTO,
+  type ExtractorContext,
   chainSequence,
   sequenceKey,
 } from "../../atoms/chainSpec.js";
@@ -80,6 +84,9 @@ interface StreamResult {
 }
 
 export class UnifiedCortex extends BaseOrchestrator {
+  /** Datos de la cuenta para los extractores de cadenas. Se fija por turno desde el servidor. */
+  private extractorContext: ExtractorContext = SIN_CONTEXTO;
+
   readonly claudeBreaker: CircuitBreaker;
   readonly geminiBreaker: CircuitBreaker;
   readonly nvidiaBreaker: CircuitBreaker;
@@ -203,6 +210,11 @@ export class UnifiedCortex extends BaseOrchestrator {
     this.tenantLimits = registry;
   }
 
+  /** Fija los datos de la cuenta que usan los extractores de cadenas en el turno. */
+  public setExtractorContext(context: ExtractorContext): void {
+    this.extractorContext = context;
+  }
+
   public async chat(userMessage: string): Promise<void> {
     this.sessionActive = true;
     try {
@@ -256,7 +268,7 @@ export class UnifiedCortex extends BaseOrchestrator {
       const chain = this.chains.find((c) => c.id === pending.chainId);
       const requirement = chain?.requires[0];
       const value = requirement
-        ? EXTRACTORS[requirement.extractor](cleanText)
+        ? EXTRACTORS[requirement.extractor](cleanText, this.extractorContext)
         : null;
       const reply =
         chain && requirement && value !== null
@@ -268,7 +280,7 @@ export class UnifiedCortex extends BaseOrchestrator {
     this.trackInput(cleanText);
     const match = await this.queryReflex(cleanText);
     if (match && match.similarity >= CHAIN_MIN_SIMILARITY) {
-      const chain = this.findChain(match.record.sequence);
+      const chain = this.findChain(match.record.sequence, cleanText);
       if (chain) return this.handleChain(chain, cleanText, streaming);
     }
     if (match?.mode === "hint") {
@@ -494,13 +506,22 @@ export class UnifiedCortex extends BaseOrchestrator {
   }
 
   /** Cadena del perfil que coincide con la secuencia de Jev y cuyas células están permitidas. */
-  private findChain(sequence: string): ChainDefinition | undefined {
+  /**
+   * Cadena del perfil que coincide con la secuencia de Jev, cuyas células están permitidas
+   * y cuyos términos de guarda no aparecen en el mensaje. Si la primera cadena queda bloqueada,
+   * se prueba la siguiente: así una pregunta con estado llega a la cadena que pide el estado.
+   */
+  private findChain(
+    sequence: string,
+    text: string,
+  ): ChainDefinition | undefined {
     const key = sequenceKey(sequence);
     const allowed = this.organisms[0]?.getAllowedCells() ?? [];
     return this.chains.find(
       (chain) =>
         chainSequence(chain) === key &&
-        chain.steps.every((step) => allowed.includes(step.cell)),
+        chain.steps.every((step) => allowed.includes(step.cell)) &&
+        !mentionsAny(text, chain.avoidTerms ?? []),
     );
   }
 
@@ -518,7 +539,10 @@ export class UnifiedCortex extends BaseOrchestrator {
         streaming,
       );
     }
-    const value = EXTRACTORS[requirement.extractor](text);
+    const value = EXTRACTORS[requirement.extractor](
+      text,
+      this.extractorContext,
+    );
     if (value === null) {
       this.pendingChains.set(this.getSessionId(), chain.id);
       return this.replyAssistant(requirement.ask, streaming);
@@ -549,8 +573,28 @@ export class UnifiedCortex extends BaseOrchestrator {
       },
     };
     try {
+      const viewBefore = this._lastView;
       const output = await runChain(chain, values, port);
+      const produced = this._lastView;
+      if (
+        produced !== viewBefore &&
+        produced &&
+        !viewFitsDeclaration(produced, chain.view)
+      ) {
+        this.log.warn(
+          "Vista descartada: su tipo no coincide con el declarado por la cadena",
+          {
+            chain: chain.id,
+            declared: chain.view,
+            produced: produced.type,
+          },
+        );
+        this._lastView = viewBefore;
+      }
+      // Si la cadena dejó una vista nueva y aceptada, la respuesta corta apunta a ella.
+      const producedView = this._lastView !== viewBefore;
       if (chain.respond === "tool") {
+        if (producedView) return chain.done;
         return extractToolText(output) ?? chain.done;
       }
       return chain.done;

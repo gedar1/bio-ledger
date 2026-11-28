@@ -6,15 +6,30 @@
 import type { ChainDefinition, ExtractorName } from "../config/chainSchema.js";
 import { extractUrl } from "./chainExtraction.js";
 import { extractPeriodo } from "./periodExtraction.js";
+import { extractEstado } from "./estadoExtraction.js";
+import { extractCliente, type ClienteRef } from "./clienteExtraction.js";
+
+/** Datos de la cuenta que un extractor puede necesitar además del texto. */
+export interface ExtractorContext {
+  readonly clientes: readonly ClienteRef[];
+}
+
+/** Contexto vacío: los extractores que no necesitan datos de la cuenta lo ignoran. */
+export const SIN_CONTEXTO: ExtractorContext = { clientes: [] };
 
 /** Extractores del motor. El perfil referencia el nombre, no la implementación. */
-export const EXTRACTORS: Record<ExtractorName, (text: string) => string | null> = {
+export const EXTRACTORS: Record<
+  ExtractorName,
+  (text: string, context: ExtractorContext) => string | null
+> = {
   url: (text) => extractUrl(text),
   text: (text) => {
     const trimmed = text.trim();
     return trimmed === "" ? null : trimmed;
   },
   periodo: (text) => extractPeriodo(text),
+  estado: (text) => extractEstado(text),
+  cliente: (text, context) => extractCliente(text, context.clientes),
 };
 
 /** Secuencia de herramientas de la cadena, con el formato que usa Jev: "a→b". */
@@ -50,7 +65,8 @@ export function resolveArgs(
 ): ResolvedArgs {
   if (typeof template === "string") {
     if (template === "$previous") return { ok: true, value: previous };
-    if (template === "$now") return { ok: true, value: new Date().toISOString() };
+    if (template === "$now")
+      return { ok: true, value: new Date().toISOString() };
     if (template.startsWith("$requires.")) {
       const name = template.slice("$requires.".length);
       return name in values
