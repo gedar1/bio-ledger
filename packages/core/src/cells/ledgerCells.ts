@@ -303,6 +303,37 @@ export const ledgerRegistrations: Registration[] = [
           }),
       );
       server.registerTool(
+        "list_client_expenses",
+        {
+          description:
+            "Lista los gastos de un cliente del contador, indicado por tenantId. Filtros opcionales: periodo (AAAA-MM o AAAA-Tn) y estado. Sin filtros, muestra todos.",
+          inputSchema: {
+            tenantId: z.string(),
+            periodo: z.string().optional(),
+            estado: z.enum(ESTADOS).optional(),
+          },
+        },
+        async ({ tenantId, periodo, estado }) => {
+          const period = periodo === undefined ? null : parsePeriod(periodo);
+          if (periodo !== undefined && !period)
+            return textResult(PERIODO_NO_VALIDO);
+          return withClientMolecule(context, tenantId, (molecule) => {
+            const expenses = molecule
+              .listExpenses(estado)
+              .filter(
+                (e) =>
+                  !period ||
+                  (e.fecha >= period.desde && e.fecha <= period.hasta),
+              );
+            if (expenses.length === 0) return textResult("No hay gastos.");
+            return toolResult(
+              expensesListText(expenses, categoryNamesOf(molecule)),
+              expensesListView(expenses, "chat.viewClientExpensesTitle"),
+            );
+          });
+        },
+      );
+      server.registerTool(
         "get_client_statement",
         {
           description:

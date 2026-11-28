@@ -60,7 +60,7 @@ export type ResolvedArgs =
  */
 export function resolveArgs(
   template: unknown,
-  values: Readonly<Record<string, string>>,
+  values: Readonly<Record<string, string | undefined>>,
   previous: unknown,
 ): ResolvedArgs {
   if (typeof template === "string") {

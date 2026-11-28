@@ -307,3 +307,46 @@ describe("consulta pendiente: límite de intentos", () => {
     expect(pendingChains.get(cortex.getSessionId())).toBeFalsy();
   });
 });
+
+describe("cadena con varios datos", () => {
+  const cliente = { name: "cliente", extractor: "cliente", ask: "¿Qué cliente?", optional: false };
+  const periodo = { name: "periodo", extractor: "periodo", ask: "¿Qué periodo?", optional: false };
+  const estado = { name: "estado", extractor: "estado", ask: "¿Qué estado?", optional: true };
+  const contexto = { clientes: [{ tenant_id: "cliente-vivo", display_name: "Cliente vivo" }] };
+
+  /** Cortex con el paso de la cadena espiado: se observan los datos que llegan al paso. */
+  function cortexWith(chain: Record<string, unknown>) {
+    const pendingChains = new DefaultPendingChainStore();
+    const cortex = new UnifiedCortex({ providers: new Map(), reflexExecutor: reflexExecutor(), chains: [chain as never], pendingChains });
+    cortex.setExtractorContext(contexto);
+    const runSteps = vi.spyOn(cortex as never as { runChainSteps: (...a: unknown[]) => Promise<string> }, "runChainSteps").mockResolvedValue("ok");
+    return { cortex, pendingChains, runSteps };
+  }
+
+  it("pide el periodo después del cliente y ejecuta cuando ya tiene los dos", async () => {
+    const chain = { id: "consulta-cliente-periodo", description: "prueba", requires: [cliente, periodo], setup: [], steps: [], respond: "tool" };
+    const { cortex, pendingChains, runSteps } = cortexWith(chain);
+    const lastAssistant = () => cortex.getHistory().filter((e) => e.role === "assistant").pop()?.content;
+    pendingChains.set(cortex.getSessionId(), chain.id, { missing: "cliente" });
+
+    await cortex.chat("cliente-vivo");
+    expect(lastAssistant()).toBe("¿Qué periodo?");
+    expect(runSteps).not.toHaveBeenCalled();
+
+    await cortex.chat("2026-03");
+    expect(runSteps).toHaveBeenCalledWith(chain, { cliente: "cliente-vivo", periodo: "2026-03" });
+  });
+
+  it("un dato opcional que no llega no se pregunta y el paso recibe ese dato como undefined", async () => {
+    const chain = { id: "consulta-cliente-estado", description: "prueba", requires: [cliente, estado], setup: [], steps: [], respond: "tool" };
+    const { cortex, pendingChains, runSteps } = cortexWith(chain);
+    pendingChains.set(cortex.getSessionId(), chain.id, { missing: "cliente" });
+
+    await cortex.chat("cliente-vivo");
+
+    expect(runSteps).toHaveBeenCalledTimes(1);
+    const values = runSteps.mock.calls[0][1] as Record<string, unknown>;
+    expect(values.cliente).toBe("cliente-vivo");
+    expect(values.estado).toBeUndefined();
+  });
+});

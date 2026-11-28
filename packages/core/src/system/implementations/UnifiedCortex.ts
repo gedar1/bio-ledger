@@ -47,6 +47,7 @@ import {
   mentionsAny,
 } from "../../atoms/chainExtraction.js";
 import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
+import { collectRequirements } from "../../atoms/chainRequirements.js";
 import { viewFitsDeclaration } from "../../atoms/chatView.js";
 import {
   EXTRACTORS,
@@ -268,25 +269,45 @@ export class UnifiedCortex extends BaseOrchestrator {
       this.pendingChains.clear(sessionId);
       this.addUserMessage(cleanText);
       const chain = this.chains.find((c) => c.id === pending.chainId);
-      const requirement = chain?.requires[0];
-      const value = requirement
-        ? EXTRACTORS[requirement.extractor](cleanText, this.extractorContext)
-        : null;
-      // Con `retry`, una respuesta que no sirve deja la consulta pendiente y vuelve a preguntar.
-      // Tras MAX_PENDING_ATTEMPTS respuestas fallidas, la consulta se descarta.
-      if (chain && requirement && value === null && requirement.retry) {
-        const attempts = pending.attempts + 1;
-        if (attempts >= MAX_PENDING_ATTEMPTS) {
-          return this.replyAssistant(PENDING_GAVE_UP_WARNING, streaming);
-        }
-        this.pendingChains.set(sessionId, chain.id, attempts);
-        return this.replyAssistant(requirement.retry, streaming);
+      if (!chain)
+        return this.replyAssistant(PENDING_DISCARDED_WARNING, streaming);
+      const result = collectRequirements(
+        chain.requires,
+        pending.values,
+        (requirement) =>
+          EXTRACTORS[requirement.extractor](cleanText, this.extractorContext),
+      );
+      if (result.status === "complete") {
+        return this.replyAssistant(
+          await this.runChainSteps(chain, result.values),
+          streaming,
+        );
       }
-      const reply =
-        chain && requirement && value !== null
-          ? await this.runChainSteps(chain, { [requirement.name]: value })
-          : PENDING_DISCARDED_WARNING;
-      return this.replyAssistant(reply, streaming);
+      // La respuesta sirvió para el dato anterior y ahora falta otro: se pregunta por él.
+      const asked = pending.missing ?? result.requirement.name;
+      if (result.requirement.name !== asked) {
+        this.pendingChains.set(sessionId, chain.id, {
+          values: result.values,
+          missing: result.requirement.name,
+          attempts: 0,
+        });
+        return this.replyAssistant(result.requirement.ask, streaming);
+      }
+      // La respuesta no sirvió para el dato que se pidió. Con `retry`, se vuelve a preguntar
+      // hasta MAX_PENDING_ATTEMPTS respuestas fallidas; sin él, la consulta se descarta.
+      const { retry } = result.requirement;
+      if (!retry)
+        return this.replyAssistant(PENDING_DISCARDED_WARNING, streaming);
+      const attempts = pending.attempts + 1;
+      if (attempts >= MAX_PENDING_ATTEMPTS) {
+        return this.replyAssistant(PENDING_GAVE_UP_WARNING, streaming);
+      }
+      this.pendingChains.set(sessionId, chain.id, {
+        values: result.values,
+        missing: result.requirement.name,
+        attempts,
+      });
+      return this.replyAssistant(retry, streaming);
     }
 
     this.trackInput(cleanText);
@@ -544,31 +565,41 @@ export class UnifiedCortex extends BaseOrchestrator {
     streaming: boolean,
   ): Promise<string> {
     this.addUserMessage(text);
-    const requirement = chain.requires[0];
-    if (!requirement) {
+    return this.advanceChain(chain, text, {}, 0, streaming);
+  }
+
+  /**
+   * Reúne los datos de la cadena a partir del texto. Si ya están todos, ejecuta los pasos.
+   * Si falta uno, lo deja pendiente y pregunta por él.
+   */
+  private async advanceChain(
+    chain: ChainDefinition,
+    text: string,
+    known: Readonly<Record<string, string | undefined>>,
+    attempts: number,
+    streaming: boolean,
+  ): Promise<string> {
+    const result = collectRequirements(chain.requires, known, (requirement) =>
+      EXTRACTORS[requirement.extractor](text, this.extractorContext),
+    );
+    if (result.status === "complete") {
       return this.replyAssistant(
-        await this.runChainSteps(chain, {}),
+        await this.runChainSteps(chain, result.values),
         streaming,
       );
     }
-    const value = EXTRACTORS[requirement.extractor](
-      text,
-      this.extractorContext,
-    );
-    if (value === null) {
-      this.pendingChains.set(this.getSessionId(), chain.id);
-      return this.replyAssistant(requirement.ask, streaming);
-    }
-    return this.replyAssistant(
-      await this.runChainSteps(chain, { [requirement.name]: value }),
-      streaming,
-    );
+    this.pendingChains.set(this.getSessionId(), chain.id, {
+      values: result.values,
+      missing: result.requirement.name,
+      attempts,
+    });
+    return this.replyAssistant(result.requirement.ask, streaming);
   }
 
   /** Ejecuta los pasos de la cadena. Los errores se devuelven como texto. */
   private async runChainSteps(
     chain: ChainDefinition,
-    values: Record<string, string>,
+    values: Record<string, string | undefined>,
   ): Promise<string> {
     const port: ChainPort = {
       mutate: async (cellType) => {

@@ -23,6 +23,7 @@ Reply in the language the user writes in: Spanish, Dutch or English. The user-fa
 
 ## Tools
 
+- `list_client_expenses`: one client's expenses, all of them or filtered by `period` and by `state`. Requires `tenantId`. Use it for approved, rejected or cancelled expenses too.
 - `list_pending_expenses`: the pending expenses of one client. Requires `tenantId`.
 - `get_client_statement`: one client's statement for a period, with deductible and without support amounts. Requires `tenantId` and `period`.
   The "Clients of the accountant" list in the conversation maps each client's name to its `tenantId`. Use that value for `tenantId`.

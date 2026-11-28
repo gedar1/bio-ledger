@@ -26,7 +26,7 @@ export interface ChainPort {
  */
 export async function runChain(
   chain: ChainDefinition,
-  values: Readonly<Record<string, string>>,
+  values: Readonly<Record<string, string | undefined>>,
   port: ChainPort,
 ): Promise<unknown> {
   if (chain.setup.length > 0) {

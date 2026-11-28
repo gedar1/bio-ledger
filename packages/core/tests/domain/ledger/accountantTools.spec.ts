@@ -99,3 +99,57 @@ describe("herramientas del contador por tenantId", () => {
     expect(res.content[0].text).toContain("45");
   });
 });
+
+describe("listado de gastos del cliente por tenantId", () => {
+  let dir: string;
+  let sessionDb: string;
+
+  beforeEach(async () => {
+    dir = mkdtempSync(join(tmpdir(), "ledger-listado-"));
+    sessionDb = join(dir, "contador-1.db");
+    const client = new ExpenseMolecule(join(dir, "cliente-235.db"));
+    await client.initialize();
+    const categoryId = client.listCategories()[0].id;
+    client.createExpense(
+      { fecha: "2025-03-10", importe_cents: 4500, tasa_btw: 21, concepto: "Taxi", categoria_id: categoryId, con_soporte: true },
+      "CLIENT",
+    );
+    await client.dispose();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
+
+  function handlerFor(name: string) {
+    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_ACCOUNTANT_CELL)!;
+    const { handlers, server } = fakeServer();
+    registration.registerTools(
+      server as never,
+      { tenantDbPath: sessionDb, getResource: () => undefined, trackResource: () => undefined } as never,
+    );
+    return handlers[name];
+  }
+
+  it("sin filtros devuelve todos los gastos del cliente", async () => {
+    const res = await handlerFor("list_client_expenses")({ tenantId: "cliente-235" });
+    expect(res.content[0].text).toContain("Taxi");
+  });
+
+  it("filtra por periodo", async () => {
+    const handler = handlerFor("list_client_expenses");
+    expect((await handler({ tenantId: "cliente-235", periodo: "2025-03" })).content[0].text).toContain("Taxi");
+    expect((await handler({ tenantId: "cliente-235", periodo: "2025-02" })).content[0].text).toBe("No hay gastos.");
+  });
+
+  it("filtra por estado", async () => {
+    const handler = handlerFor("list_client_expenses");
+    expect((await handler({ tenantId: "cliente-235", estado: "PENDIENTE" })).content[0].text).toContain("Taxi");
+    expect((await handler({ tenantId: "cliente-235", estado: "APROBADO" })).content[0].text).toBe("No hay gastos.");
+  });
+
+  it("un periodo no válido responde con el aviso de periodo", async () => {
+    const res = await handlerFor("list_client_expenses")({ tenantId: "cliente-235", periodo: "marzo" });
+    expect(res.content[0].text).toContain("Periodo no válido");
+  });
+});
