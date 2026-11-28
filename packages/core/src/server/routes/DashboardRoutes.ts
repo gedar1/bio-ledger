@@ -9,6 +9,12 @@ import {
 } from "../middleware/requestAccess.js";
 import { chatProfileFor } from "../middleware/requestAccess.js";
 import type { TenantAuthService } from "../services/TenantAuthService.js";
+import { AccountantAuthService } from "../services/AccountantAuthService.js";
+import { LEDGER_ACCOUNTANT_PROFILE } from "../../atoms/chatProfiles.js";
+import {
+  clientsContextText,
+  tenantScopeGuard,
+} from "../../atoms/accountantScope.js";
 import {
   getDeploymentMode,
   getSingleTenantId,
@@ -149,6 +155,50 @@ export function setupDashboardRoutes(
   });
 
   // ─── Perfil del tenant ──────────────────────────────────────────────────
+  // ─── Chat del contador ──────────────────────────────────────────────────
+  // Una sesión por cuenta de contador, con el perfil ledger-contador. Cada herramienta recibe
+  // el tenantId del cliente; el validador del turno solo deja pasar clientes de esta cuenta.
+  health.registerData("accountant/chat", async (body?: any) => {
+    const header = body?._authHeader;
+    if (
+      !tenantAuthService ||
+      typeof header !== "string" ||
+      !header.startsWith("Bearer ")
+    ) {
+      return {
+        error: "Token de contador no válido",
+        code: "AUTH_INVALID_TOKEN",
+      };
+    }
+    const claims = AccountantAuthService.verifyToken(header.slice(7));
+    if (!claims) {
+      return {
+        error: "Token de contador no válido",
+        code: "AUTH_INVALID_TOKEN",
+      };
+    }
+    if (typeof body?.message !== "string" || !body.message.trim()) {
+      return { error: "message requerido" };
+    }
+    const clients = tenantAuthService.clientsOwnedBy(claims.account_id);
+    const sessionId = `contador-${claims.account_id}`;
+    try {
+      const result = await tenantManager.chatWithView(
+        sessionId,
+        body.message,
+        LEDGER_ACCOUNTANT_PROFILE,
+        {
+          toolGuard: tenantScopeGuard(clients.map((c) => c.tenant_id)),
+          turnContext: clientsContextText(clients),
+          clientes: clients,
+        },
+      );
+      return { response: result.text, view: result.view };
+    } catch (error: any) {
+      return { error: error.message };
+    }
+  });
+
   health.registerData("tenant-profile", async (body?: any) => {
     const tenantId = resolveTenantId(body || {}, tenantAuthService);
     // Leer perfil directamente del env/config sin crear tenant (evita disparar LLM)

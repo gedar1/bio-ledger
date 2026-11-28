@@ -19,7 +19,13 @@
 import { z } from "zod";
 
 /** Extractores de datos del mensaje. Los implementa el motor en `atoms/chainSpec.ts`. */
-export const EXTRACTOR_NAMES = ["url", "text", "periodo", "estado"] as const;
+export const EXTRACTOR_NAMES = [
+  "url",
+  "text",
+  "periodo",
+  "estado",
+  "cliente",
+] as const;
 export type ExtractorName = (typeof EXTRACTOR_NAMES)[number];
 
 export const ChainStepSchema = z.object({

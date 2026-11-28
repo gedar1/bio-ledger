@@ -10,13 +10,22 @@ import type { ExpenseState } from "./expenseRules.js";
 /** Términos por estado, sin tildes y en minúsculas, en español, neerlandés e inglés. */
 const TERMS: Record<ExpenseState, readonly string[]> = {
   APROBADO: ["aprobad", "goedgekeurd", "approved"],
-  PENDIENTE: ["pendient", "in behandeling", "in afwachting", "te beoordelen", "pending"],
+  PENDIENTE: [
+    "pendient",
+    "in behandeling",
+    "in afwachting",
+    "te beoordelen",
+    "pending",
+  ],
   RECHAZADO: ["rechazad", "afgewezen", "rejected"],
   ANULADO: ["anulad", "geannuleerd", "cancelled", "canceled"],
 };
 
 const normalize = (text: string): string =>
-  text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 
 /**
  * Devuelve el único estado que menciona el texto, o null si ninguno o varios.

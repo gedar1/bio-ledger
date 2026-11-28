@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { z } from "zod";
 import {
   LEDGER_ACCOUNTANT_CELL,
@@ -42,6 +43,29 @@ const PERIODO = z
   );
 
 const PERIODO_NO_VALIDO = "Periodo no válido. Usa AAAA-MM o AAAA-Tn.";
+
+/**
+ * Abre la base de un cliente por su tenantId, en la misma carpeta que la base de la sesión,
+ * la usa y la cierra. El validador del chat ya comprobó que el cliente pertenece al contador.
+ */
+async function withClientMolecule<T>(
+  context: CellRuntimeContext,
+  tenantId: string,
+  use: (molecule: ExpenseMolecule) => T,
+): Promise<T> {
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(tenantId)) {
+    throw new ToolExecutionError(LEDGER_ACCOUNTANT_CELL, "Cliente no válido.");
+  }
+  const molecule = new ExpenseMolecule(
+    join(dirname(context.tenantDbPath), `${tenantId}.db`),
+  );
+  await molecule.initialize();
+  try {
+    return use(molecule);
+  } finally {
+    await molecule.dispose();
+  }
+}
 
 function moleculeFor(
   context: CellRuntimeContext,
@@ -183,7 +207,8 @@ export const ledgerRegistrations: Registration[] = [
       server.registerTool(
         "get_my_monthly_totals",
         {
-          description: "Gasto del cliente por mes del año en curso, en tabla (el cliente puede verla como gráfico). Úsala para la evolución mensual del gasto o cuando pida un gráfico.",
+          description:
+            "Gasto del cliente por mes del año en curso, en tabla (el cliente puede verla como gráfico). Úsala para la evolución mensual del gasto o cuando pida un gráfico.",
           inputSchema: {},
         },
         async () => {
@@ -259,40 +284,44 @@ export const ledgerRegistrations: Registration[] = [
         "list_pending_expenses",
         {
           description:
-            "Lista los gastos pendientes de revisión del cliente seleccionado.",
-          inputSchema: {},
+            "Lista los gastos pendientes de revisión del cliente indicado en tenantId.",
+          inputSchema: { tenantId: z.string() },
         },
-        async () => {
-          const molecule = moleculeFor(context, LEDGER_ACCOUNTANT_CELL);
-          return textResult(
-            formatExpenses(
-              molecule.listExpenses("PENDIENTE"),
-              categoryNamesOf(molecule),
-              "No hay gastos pendientes.",
-            ),
-          );
-        },
+        async ({ tenantId }) =>
+          withClientMolecule(context, tenantId, (molecule) => {
+            const pending = molecule.listExpenses("PENDIENTE");
+            if (pending.length === 0)
+              return textResult("No hay gastos pendientes.");
+            return toolResult(
+              formatExpenses(
+                pending,
+                categoryNamesOf(molecule),
+                "No hay gastos pendientes.",
+              ),
+              expensesListView(pending, "chat.viewPendingTitle"),
+            );
+          }),
       );
-
       server.registerTool(
         "get_client_statement",
         {
           description:
-            "Estado de cuenta del cliente seleccionado para un periodo, con deducible y sin soporte.",
-          inputSchema: { periodo: PERIODO },
+            "Estado de cuenta del cliente indicado en tenantId para un periodo, con deducible y sin soporte.",
+          inputSchema: { tenantId: z.string(), periodo: PERIODO },
         },
-        async ({ periodo }) => {
+        async ({ tenantId, periodo }) => {
           const period = parsePeriod(periodo);
           if (!period) return textResult(PERIODO_NO_VALIDO);
-          const molecule = moleculeFor(context, LEDGER_ACCOUNTANT_CELL);
-          return textResult(
-            formatStatement(
-              buildStatement(
-                period,
-                molecule.listExpenses(),
-                molecule.listCategories(),
+          return withClientMolecule(context, tenantId, (molecule) =>
+            textResult(
+              formatStatement(
+                buildStatement(
+                  period,
+                  molecule.listExpenses(),
+                  molecule.listCategories(),
+                ),
+                true,
               ),
-              true,
             ),
           );
         },

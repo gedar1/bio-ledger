@@ -17,6 +17,7 @@ import {
   type Session,
 } from "./shared";
 import {
+  AccountantChatPage,
   ChatPage,
   ClientsPage,
   ExpensesPage,
@@ -58,9 +59,14 @@ function Shell({
             <span className="font-serif text-xl">{t("app.name")}</span>
             <nav className="flex gap-6">
               {session.role === "accountant" ? (
-                <NavLink to="/contador/clientes" className={link}>
-                  {t("nav.clients")}
-                </NavLink>
+                <>
+                  <NavLink to="/contador/clientes" className={link}>
+                    {t("nav.clients")}
+                  </NavLink>
+                  <NavLink to="/contador/asistente" className={link}>
+                    {t("nav.chat")}
+                  </NavLink>
+                </>
               ) : (
                 <>
                   <NavLink to="/cliente/gastos" className={link}>
@@ -148,6 +154,17 @@ function ClientStatementRoute({ session }: { session: Session | null }) {
 }
 
 /** Chat del cliente con el asistente. */
+function AccountantChatRoute({ session }: { session: Session | null }) {
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role !== "accountant")
+    return <Navigate to="/cliente/gastos" replace />;
+  return (
+    <Shell session={session}>
+      <AccountantChatPage token={session.token} />
+    </Shell>
+  );
+}
+
 function ClientChatRoute({ session }: Readonly<{ session: Session | null }>) {
   if (!session) return <Navigate to="/login" replace />;
   if (session.role !== "client")
@@ -212,6 +229,10 @@ export default function App() {
       <Route
         path="/contador/clientes/:tenantId/estado"
         element={<AccountantStatementRoute session={session} />}
+      />
+      <Route
+        path="/contador/asistente"
+        element={<AccountantChatRoute session={session} />}
       />
       <Route
         path="*"

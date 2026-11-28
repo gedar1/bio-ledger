@@ -24,9 +24,20 @@ export const ledgerClientProfile: ProfileConfig = {
     {
       id: "mis-gastos",
       avoidTerms: [
-        "aprobad", "pendient", "rechazad", "anulad", "estado",
-        "goedgekeurd", "behandeling", "afgewezen", "geannuleerd",
-        "approved", "pending", "rejected", "cancelled", "canceled",
+        "aprobad",
+        "pendient",
+        "rechazad",
+        "anulad",
+        "estado",
+        "goedgekeurd",
+        "behandeling",
+        "afgewezen",
+        "geannuleerd",
+        "approved",
+        "pending",
+        "rejected",
+        "cancelled",
+        "canceled",
       ],
       description: "Lista los gastos del cliente",
       steps: [{ cell: LEDGER_CLIENT_CELL, tool: "list_my_expenses", args: {} }],
@@ -38,7 +49,8 @@ export const ledgerClientProfile: ProfileConfig = {
     },
     {
       id: "gastos-por-estado",
-      description: "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
+      description:
+        "Gastos del cliente en un estado: aprobados, pendientes, rechazados o anulados",
       requires: [
         {
           name: "estado",
@@ -97,10 +109,12 @@ export const ledgerClientProfile: ProfileConfig = {
       description: "Gasto del cliente por mes del año en curso, en tabla",
       requires: [],
       setup: [],
-      steps: [{ cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} }],
+      steps: [
+        { cell: LEDGER_CLIENT_CELL, tool: "get_my_monthly_totals", args: {} },
+      ],
       respond: "tool",
       view: "table",
-      done: "Te muestro tu gasto por mes en la tabla.",
+      done: "Este es tu gasto por mes para este año. Si quieres los gastos de un mes concreto, dime cuál.",
     },
     {
       id: "mis-categorias",
@@ -165,22 +179,30 @@ export const ledgerAccountantProfile: ProfileConfig = {
   allowedCells: [LEDGER_ACCOUNTANT_CELL],
   agentFile: "config/ledger-agent-contador.md",
   description:
-    "Asistente del contador: revisión de gastos y estado de cuenta del cliente seleccionado",
+    "Asistente del contador: revisión de gastos y estado de cuenta de sus clientes, indicados por nombre o ID",
   chains: [
     {
-      id: "gastos-pendientes",
-      description: "Lista los gastos pendientes de revisión del cliente",
+      id: "pendientes-de-cliente",
+      description:
+        "Gastos pendientes de revisión de un cliente del contador, indicado por nombre o ID",
+      requires: [
+        {
+          name: "cliente",
+          extractor: "cliente",
+          ask: "¿De qué cliente? Dame su nombre completo o su ID.",
+        },
+      ],
+      setup: [],
       steps: [
         {
           cell: LEDGER_ACCOUNTANT_CELL,
           tool: "list_pending_expenses",
-          args: {},
+          args: { tenantId: "$requires.cliente" },
         },
       ],
-      requires: [],
-      setup: [],
+      view: "table",
       respond: "tool",
-      done: "Estos son los gastos pendientes.",
+      done: "Estos son los gastos pendientes del cliente.",
     },
   ],
 };

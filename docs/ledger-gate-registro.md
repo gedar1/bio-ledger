@@ -36,24 +36,51 @@ El handler solo valida la entrada, pide datos a la molécula o a los átomos, y 
 2. Usa esquemas con tipos concretos: `z.enum`, `z.string()` y `z.number()`. **No uses `pattern`, `z.any()` ni `z.record(z.any())`**: el proveedor del modelo los rechaza. Valida el formato dentro del handler.
 3. El handler devuelve `{ content: [{ type: "text", text }] }`. Da formato al texto con código: importes, fechas y totales en el código, no en el modelo.
 4. Añade el nombre de la herramienta a `tools` de su célula en `config/domain-registry.json`.
-5. Añade la descripción en `config/domain-tools.json`. **Jev elige por esa descripción**: escríbela para que deje claro qué hace la herramienta y cuándo no usarla. Por ejemplo, `list_my_expenses` dice que no sirve para totales.
+5. Añade la descripción en `config/domain-tools.json`. **Jev elige por esa descripción**, y el LLM también la lee en cada turno. Sigue la regla de la sección siguiente.
+
+### Cómo redactar la descripción
+
+La descripción tiene que cubrir tres cosas, en pocas frases:
+
+- **Qué devuelve**, con su forma: lista de gastos, total por mes, estado de cuenta de un periodo.
+- **Cuándo usarla**, en términos de la petición (qué pide el usuario), no de una frase concreta.
+- **Cuándo no**, nombrando la herramienta que sí corresponde.
+
+Las referencias van en los dos sentidos. Si `A` dice "para totales usa `B`", `B` no puede decir lo contrario. Cada herramienta tiene un solo trabajo.
+
+Ejemplo, las tres herramientas del cliente que se pueden confundir:
+
+- `list_my_expenses`: lista los gastos de todo el historial, una línea por gasto. Filtra por estado si lo piden. No filtra por periodo ni da totales: para totales usa `get_my_statement` o `get_my_monthly_totals`.
+- `get_my_statement`: total y estado de cuenta de un mes o trimestre concreto (AAAA-MM o AAAA-Tn). No sirve para un año completo ni para una lista de gastos.
+- `get_my_monthly_totals`: total de cada mes del año en curso, en tabla. No devuelve gastos individuales: para la lista usa `list_my_expenses`.
+
+No redactes la descripción para una frase concreta. Si una descripción solo funciona para "cuáles son mis gastos de este año", es probable que se pise con otra herramienta para la siguiente pregunta.
+
+**Herramienta o cadena.** Una cadena es para una petición que se traduce a argumentos fijos, por ejemplo un periodo que el extractor obtiene del texto, y cuya respuesta siempre tiene el mismo formato. Una herramienta es para lo que necesita que el LLM elija o combine. Jev elige entre las mismas descripciones que el LLM, así que una cadena no corrige una descripción ambigua.
+
+**Validación.** Antes de dar una descripción por buena, prueba una batería de 6 a 8 formulaciones por herramienta, incluidos los casos límite (año, mes, estado, categorías). Anota qué herramienta elige Jev y con qué confianza. Si ninguna herramienta encaja, Jev debe quedar por debajo de `REFLEX_SELECTION_THRESHOLD` (0,7) y la pregunta debe ir al LLM.
+
+**Longitud.** Dos o tres frases. La descripción viaja en cada turno del LLM y cuesta tokens.
 
 ## Paso 2: los datos (solo si la cadena los necesita)
 
 Si la cadena necesita un dato del mensaje, el dato lo extrae un **extractor del motor**.
 
 Extractores actuales (`config/chainSchema.ts`, `EXTRACTOR_NAMES`):
+
 - `url`: una URL del texto.
 - `text`: el texto completo.
 - `periodo`: un mes o trimestre (`atoms/periodExtraction.ts`).
 - `estado`: aprobado, pendiente, rechazado o anulado, en nl, es y en (`atoms/estadoExtraction.ts`). Devuelve `null` si no hay estado o si hay más de uno.
 
 Para agregar un extractor nuevo:
+
 1. Escribe la lógica como función pura en `atoms/`, con pruebas en `tests/atoms/`.
 2. Añade su nombre a `EXTRACTOR_NAMES` en `config/chainSchema.ts`.
 3. Regístralo en `EXTRACTORS` de `atoms/chainSpec.ts`.
 
 Reglas del extractor:
+
 - Devuelve `null` cuando no hay dato **o cuando el dato es ambiguo**. Con `null`, la cadena pide el dato con su `ask`.
 - No adivines. Si el mensaje trae dos valores posibles, devuelve `null`.
 - Un error de escritura cercano a un valor válido debe tratarse como ambiguo. Así pasó con "abri" junto a "marzo".
@@ -79,6 +106,7 @@ En `config/ledgerProfiles.ts`, dentro de `chains` del perfil que corresponda (`l
 ```
 
 Reglas de cada campo:
+
 - **`id`**: minúsculas, números y guion. Sin repetir dentro del perfil.
 - **`requires`**: `name` en minúsculas y guion bajo; `extractor` debe existir en `EXTRACTOR_NAMES`.
 - **`steps[].cell`**: debe estar en `allowedCells` del perfil. Si no, el perfil no arranca.
@@ -116,12 +144,12 @@ pnpm run build:ts
 
 Reinicia el servidor con `pnpm start` después del build. Después pregunta en el chat y revisa el log:
 
-| Línea del log | Qué confirma |
-| --- | --- |
+| Línea del log                                                      | Qué confirma                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `Jev execution chain resolved` con `executionChain: [herramienta]` | Jev propuso la secuencia exacta de tu cadena (un solo paso). |
-| `Difundiendo señal ... source: "jev-chain"` con `chain: "<id>"` | El gate ejecutó tu cadena, no el modelo. |
-| `Ejecutando herramienta MCP` con el nombre de la herramienta | Se llamó la herramienta. |
-| Sin `tokens` nuevos en `platform_metrics` | No hubo llamada al modelo. |
+| `Difundiendo señal ... source: "jev-chain"` con `chain: "<id>"`    | El gate ejecutó tu cadena, no el modelo.                     |
+| `Ejecutando herramienta MCP` con el nombre de la herramienta       | Se llamó la herramienta.                                     |
+| Sin `tokens` nuevos en `platform_metrics`                          | No hubo llamada al modelo.                                   |
 
 Si la pregunta pide el dato, la respuesta es el `ask`. Contesta con un valor válido, por ejemplo "marzo", "2026-03" o "segundo trimestre", y debe ejecutarse.
 
@@ -151,6 +179,7 @@ Una herramienta puede devolver, además del texto, una vista para el panel junto
 Para que una cadena declare el tipo que espera, agrega `view: "table"` o `view: "card"` en su definición. Si la herramienta produce otro tipo, la vista se descarta y el chat responde con el texto completo. Si la cadena no declara tipo, cualquier vista sirve.
 
 El texto de la herramienta sigue existiendo para el modelo. Cuando la cadena produce una vista nueva, el chat responde con su `done`.
+
 ## Checklist final
 
 - [ ] La pregunta cumple las cinco condiciones del checklist.

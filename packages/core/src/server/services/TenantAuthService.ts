@@ -369,6 +369,16 @@ export class TenantAuthService {
     return tenant !== null && tenant.owner_id === String(accountId);
   }
 
+  /** Clientes (tenants) cuyo dueño es la cuenta indicada. */
+  clientsOwnedBy(
+    accountId: number,
+  ): { tenant_id: string; display_name: string }[] {
+    return this.registry
+      .list()
+      .filter((t) => t.owner_id === String(accountId))
+      .map((t) => ({ tenant_id: t.tenant_id, display_name: t.display_name }));
+  }
+
   async regenerateApiKey(
     tenantId: string,
     maxRole: TenantRole,

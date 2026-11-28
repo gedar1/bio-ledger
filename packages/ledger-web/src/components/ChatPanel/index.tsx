@@ -11,7 +11,12 @@ import { BloubAttentif } from "./spinners";
  * mismo envío a POST /api/chat, mismo bloqueo mientras responde, reintento tras error,
  * desplazamiento automático y cancelación si la pantalla se desmonta.
  */
-export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({
+  token,
+  onView,
+  endpoint = "chat",
+  extraBody,
+}) => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -37,8 +42,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
     setBusy(true);
     try {
       const data = await apiPost<{ response: string; view?: ChatView | null }>(
-        "chat",
-        { message: text },
+        endpoint,
+        { ...extraBody, message: text },
         token,
       );
       if (cancelledRef.current) return;
@@ -107,7 +112,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token, onView }) => {
         {failedMessage && (
           <Alert
             variant="error"
-            action={{ label: t("chat.retry"), onClick: () => retry(failedMessage), disabled: busy }}
+            action={{
+              label: t("chat.retry"),
+              onClick: () => retry(failedMessage),
+              disabled: busy,
+            }}
           >
             {t("chat.errorSend")}
           </Alert>

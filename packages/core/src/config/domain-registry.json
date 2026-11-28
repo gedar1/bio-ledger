@@ -16,7 +16,7 @@
     },
     {
       "type": "ledger_contador",
-      "description": "Revisión del contador sobre el cliente seleccionado: gastos pendientes y estado de cuenta con deducible. Solo lectura.",
+      "description": "Revisión del contador sobre un cliente indicado por tenantId: gastos pendientes y estado de cuenta con deducible. Solo lectura.",
       "tools": ["list_pending_expenses", "get_client_statement"]
     }
   ]

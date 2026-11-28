@@ -4,6 +4,7 @@ import { formatValue } from "@/shared/helpers/helpers";
 import {
   COLUMN_LABEL,
   ICON_STATE,
+  ICON_VIEW,
   LOCALE,
   chartDataOf,
   chartKindsOf,
@@ -22,12 +23,6 @@ interface TableProps {
   total?: number;
   totalIndex: number;
 }
-
-const KIND_LABEL: Record<ChartKind, string> = {
-  bar: "chat.viewAsBar",
-  line: "chat.viewAsLine",
-  pie: "chat.viewAsPie",
-};
 
 /**
  * Tabla de datos. Si sus datos admiten gráfico, ofrece un selector para verlos como
@@ -74,13 +69,18 @@ const Table = ({
                 onClick={() => setChoice(option)}
                 className={`rounded-md border px-2 py-1 ${
                   active === option
-                    ? "border-primary text-primary"
-                    : "border-hairline-strong text-steel"
+                    ? "border-primary"
+                    : "border-hairline-strong"
                 }`}
               >
-                {t(
-                  option === "table" ? "chat.viewAsTable" : KIND_LABEL[option],
-                )}
+                <img
+                  alt={option}
+                  src={
+                    active === option
+                      ? ICON_VIEW[`${option}Icon`]
+                      : ICON_VIEW[`${option}IconDisabled`]
+                  }
+                ></img>
               </button>
             ))}
           </div>

@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ExpenseMolecule } from "../../../src/molecules/ExpenseMolecule.js";
 import { ledgerRegistrations } from "../../../src/cells/ledgerCells.js";
-import { LEDGER_ACCOUNTANT_CELL, LEDGER_CLIENT_CELL } from "../../../src/config/ledgerCellTypes.js";
+import {
+  LEDGER_ACCOUNTANT_CELL,
+  LEDGER_CLIENT_CELL,
+} from "../../../src/config/ledgerCellTypes.js";
 import { extractToolText } from "../../../src/atoms/chainResponse.js";
 import { currentMonthCode } from "../../../src/atoms/statement.js";
 import { ledgerClientProfile } from "../../../src/config/ledgerProfiles.js";
@@ -131,9 +134,11 @@ describe("herramientas del chat contable", () => {
     expect(res.content[0].text).toContain("Periodo no válido");
   });
 
-  it("el contador lista pendientes del cliente seleccionado", async () => {
+  it("el contador lista pendientes del cliente indicado por tenantId", async () => {
     const handlers = registerCell(LEDGER_ACCOUNTANT_CELL);
-    const res = await handlers["list_pending_expenses"]({});
+    const res = await handlers["list_pending_expenses"]({
+      tenantId: "cliente",
+    });
     expect(res.content[0].text).toContain("Taxi");
     expect(res.content[0].text).not.toContain("Papel");
   });
@@ -483,12 +488,20 @@ describe("vista de tabla de gasto por categoría", () => {
       periodo: "2025-03",
     })) as {
       structuredContent?: {
-        view?: { columns: { key: string; format: string }[]; rows: (string | number)[][]; total?: number };
+        view?: {
+          columns: { key: string; format: string }[];
+          rows: (string | number)[][];
+          total?: number;
+        };
       };
     };
     const view = res.structuredContent?.view;
 
-    expect(view?.columns.map((c) => c.key)).toEqual(["category", "amount", "count"]);
+    expect(view?.columns.map((c) => c.key)).toEqual([
+      "category",
+      "amount",
+      "count",
+    ]);
     expect(view?.columns[1].format).toBe("cents");
     expect(view?.rows[0][1]).toBe(12100);
     expect(view?.rows[0][2]).toBe(1);
@@ -498,29 +511,48 @@ describe("vista de tabla de gasto por categoría", () => {
 
 describe("vista del estado de cuenta del mes", () => {
   it("la herramienta del estado del mes devuelve una card con aprobados, pendientes y anulados", async () => {
-    const molecule = new ExpenseMolecule(join(tmpdir(), "card-" + Date.now() + ".db"));
+    const molecule = new ExpenseMolecule(
+      join(tmpdir(), "card-" + Date.now() + ".db"),
+    );
     await molecule.initialize();
-    const registration = ledgerRegistrations.find((r) => r.type === LEDGER_CLIENT_CELL)!;
+    const registration = ledgerRegistrations.find(
+      (r) => r.type === LEDGER_CLIENT_CELL,
+    )!;
     const { handlers, server } = fakeServer();
-    registration.registerTools(server as never, {
-      tenantDbPath: "unused",
-      getResource: () => molecule,
-      trackResource: () => undefined,
-    } as never);
+    registration.registerTools(
+      server as never,
+      {
+        tenantDbPath: "unused",
+        getResource: () => molecule,
+        trackResource: () => undefined,
+      } as never,
+    );
     const res = (await handlers["get_my_month_statement"]({})) as {
-      structuredContent?: { view?: { type: string; items: { key: string; format: string; value: number }[] } };
+      structuredContent?: {
+        view?: {
+          type: string;
+          items: { key: string; format: string; value: number }[];
+        };
+      };
     };
     await molecule.dispose();
 
     expect(res.structuredContent?.view?.type).toBe("card");
-    expect(res.structuredContent?.view?.items.map((i) => i.key)).toEqual(["approved", "pending", "cancelled"]);
-    expect(res.structuredContent?.view?.items.every((i) => i.format === "cents")).toBe(true);
+    expect(res.structuredContent?.view?.items.map((i) => i.key)).toEqual([
+      "approved",
+      "pending",
+      "cancelled",
+    ]);
+    expect(
+      res.structuredContent?.view?.items.every((i) => i.format === "cents"),
+    ).toBe(true);
   });
 });
 
 describe("tipo de vista declarado por las cadenas", () => {
   it("la cadena de categorías declara tabla y la del mes declara card", () => {
-    const byId = (id: string) => ledgerClientProfile.chains?.find((c) => c.id === id);
+    const byId = (id: string) =>
+      ledgerClientProfile.chains?.find((c) => c.id === id);
     expect(byId("gasto-por-categoria-periodo")?.view).toBe("table");
     expect(byId("estado-de-cuenta-mes")?.view).toBe("card");
   });
