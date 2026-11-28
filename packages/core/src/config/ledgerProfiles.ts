@@ -190,6 +190,8 @@ export const ledgerAccountantProfile: ProfileConfig = {
           name: "cliente",
           extractor: "cliente",
           ask: "¿De qué cliente? Dame su nombre completo o su ID.",
+          retry:
+            "No encuentro ese cliente en tu cuenta. Dame su nombre completo o su ID tal como aparece en la lista de clientes.",
         },
       ],
       setup: [],

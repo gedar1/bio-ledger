@@ -8,6 +8,11 @@ import type {
 } from "../../src/system/providers/providerTypes.js";
 import { ProviderError } from "../../src/errors.js";
 import type { IReflexExecutor } from "../../src/system/strategies/IReflexExecutor.js";
+import { DefaultPendingChainStore } from "../../src/system/strategies/index.js";
+import {
+  PENDING_DISCARDED_WARNING,
+  PENDING_GAVE_UP_WARNING,
+} from "../../src/atoms/chainExtraction.js";
 
 function reflexExecutor(): IReflexExecutor {
   return {
@@ -191,5 +196,114 @@ describe("UnifiedCortex coordination", () => {
     await cortex.chat("fallback");
     expect(cortex.getHistory().at(-1)?.content).toBe("fallback");
     expect(cortex.geminiBreaker.getFailureCount()).toBe(1);
+  });
+});
+
+describe("consulta pendiente con retry", () => {
+  const retry = "No encuentro ese cliente en tu cuenta.";
+  const chainWith = (retryText?: string) => ({
+    id: "pendientes-de-cliente",
+    description: "pendientes de un cliente",
+    requires: [
+      {
+        name: "cliente",
+        extractor: "cliente",
+        ask: "¿De qué cliente?",
+        ...(retryText ? { retry: retryText } : {}),
+      },
+    ],
+    setup: [],
+    steps: [
+      {
+        cell: "ledger_accountant",
+        tool: "list_pending_expenses",
+        args: { tenantId: "$requires.cliente" },
+      },
+    ],
+    respond: "tool",
+  });
+
+  it("si la respuesta no sirve y hay retry, la consulta sigue pendiente", async () => {
+    const pendingChains = new DefaultPendingChainStore();
+    const cortex = new UnifiedCortex({
+      providers: new Map(),
+      reflexExecutor: reflexExecutor(),
+      chains: [chainWith(retry) as never],
+      pendingChains,
+    });
+    pendingChains.set(cortex.getSessionId(), "pendientes-de-cliente");
+
+    await cortex.chat("toine odtdam");
+
+    expect(pendingChains.get(cortex.getSessionId())).toBeDefined();
+    const last = cortex
+      .getHistory()
+      .filter((e) => e.role === "assistant")
+      .pop();
+    expect(last?.content).toBe(retry);
+  });
+
+  it("sin retry, la consulta se descarta con el aviso general", async () => {
+    const pendingChains = new DefaultPendingChainStore();
+    const cortex = new UnifiedCortex({
+      providers: new Map(),
+      reflexExecutor: reflexExecutor(),
+      chains: [chainWith() as never],
+      pendingChains,
+    });
+    pendingChains.set(cortex.getSessionId(), "pendientes-de-cliente");
+
+    await cortex.chat("toine odtdam");
+
+    expect(pendingChains.get(cortex.getSessionId())).toBeFalsy();
+    const last = cortex
+      .getHistory()
+      .filter((e) => e.role === "assistant")
+      .pop();
+    expect(last?.content).toBe(PENDING_DISCARDED_WARNING);
+  });
+});
+
+describe("consulta pendiente: límite de intentos", () => {
+  const retry = "No encuentro ese cliente en tu cuenta.";
+  const chain = {
+    id: "pendientes-de-cliente",
+    description: "pendientes de un cliente",
+    requires: [
+      { name: "cliente", extractor: "cliente", ask: "¿De qué cliente?", retry },
+    ],
+    setup: [],
+    steps: [
+      {
+        cell: "ledger_accountant",
+        tool: "list_pending_expenses",
+        args: { tenantId: "$requires.cliente" },
+      },
+    ],
+    respond: "tool",
+  };
+
+  it("tras dos respuestas que no sirven, descarta la consulta con el aviso de intentos", async () => {
+    const pendingChains = new DefaultPendingChainStore();
+    const cortex = new UnifiedCortex({
+      providers: new Map(),
+      reflexExecutor: reflexExecutor(),
+      chains: [chain as never],
+      pendingChains,
+    });
+    const lastAssistant = () =>
+      cortex
+        .getHistory()
+        .filter((e) => e.role === "assistant")
+        .pop()?.content;
+    pendingChains.set(cortex.getSessionId(), "pendientes-de-cliente");
+
+    await cortex.chat("primer intento sin cliente");
+    expect(lastAssistant()).toBe(retry);
+    expect(pendingChains.get(cortex.getSessionId())).toBeTruthy();
+
+    await cortex.chat("segundo intento sin cliente");
+    expect(lastAssistant()).toBe(PENDING_GAVE_UP_WARNING);
+    expect(pendingChains.get(cortex.getSessionId())).toBeFalsy();
   });
 });

@@ -41,7 +41,9 @@ import type { IUsageMetricsSink } from "../interfaces/IUsageMetricsSink.js";
 import type { ITenantTokenLimitReader } from "../interfaces/ITenantTokenLimitReader.js";
 import {
   CHAIN_MIN_SIMILARITY,
+  MAX_PENDING_ATTEMPTS,
   PENDING_DISCARDED_WARNING,
+  PENDING_GAVE_UP_WARNING,
   mentionsAny,
 } from "../../atoms/chainExtraction.js";
 import { filterRedundantMutationTool } from "../../atoms/redundantMutation.js";
@@ -270,6 +272,16 @@ export class UnifiedCortex extends BaseOrchestrator {
       const value = requirement
         ? EXTRACTORS[requirement.extractor](cleanText, this.extractorContext)
         : null;
+      // Con `retry`, una respuesta que no sirve deja la consulta pendiente y vuelve a preguntar.
+      // Tras MAX_PENDING_ATTEMPTS respuestas fallidas, la consulta se descarta.
+      if (chain && requirement && value === null && requirement.retry) {
+        const attempts = pending.attempts + 1;
+        if (attempts >= MAX_PENDING_ATTEMPTS) {
+          return this.replyAssistant(PENDING_GAVE_UP_WARNING, streaming);
+        }
+        this.pendingChains.set(sessionId, chain.id, attempts);
+        return this.replyAssistant(requirement.retry, streaming);
+      }
       const reply =
         chain && requirement && value !== null
           ? await this.runChainSteps(chain, { [requirement.name]: value })
