@@ -1,0 +1,37 @@
+import calendarDots from "./receipt-text-dark.svg?raw";
+import caretLeft from "./caret-left.svg?raw";
+import chartBar from "./chart-bar.svg?raw";
+import close from "./x.svg?raw";
+import menu from "./menuLight.svg?raw";
+import motorcycle from "./motorbikeLight.svg?raw";
+import packageIcon from "./package_light.svg?raw";
+import personSimpleBike from "./person_simple_bike.svg?raw";
+import squarePen from "./square-pen.svg?raw";
+import wallet from "./wallet_minimal.svg?raw";
+import note_pencil from "./note-pencil.svg?raw";
+import refresh_ccw_dot from "./refresh_ccw_dot.svg?raw";
+import wazeIcon from "./wazeIcon.svg";
+import mapPin from "./mapPin.svg";
+import eye from "./eye.svg";
+import eye_off from "./eye_off.svg";
+
+export const rawIcons = {
+  calendarDots,
+  caretLeft,
+  chartBar,
+  close,
+  menu,
+  motorcycle,
+  package: packageIcon,
+  personSimpleBike,
+  squarePen,
+  wallet,
+  note_pencil,
+  refresh_ccw_dot,
+  wazeIcon,
+  mapPin,
+  eye,
+  eye_off,
+} as const;
+
+export type IconName = keyof typeof rawIcons;

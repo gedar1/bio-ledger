@@ -1,20 +1,29 @@
 import React, { useEffect, useRef, useState, type SubmitEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { apiPost } from "../../api";
-import type { ChatMessage, ChatPanelProps } from "./ChatPanel.types";
+import type { ChatMessage, ChatPanelProps, ChatView } from "@/types";
+import { Alert } from "@/shared/components";
+
+import { BloubAttentif } from "./spinners";
 
 /**
  * Chat del cliente con el asistente del producto. Adaptado de ExecutionChat del dashboard:
  * mismo envío a POST /api/chat, mismo bloqueo mientras responde, reintento tras error,
  * desplazamiento automático y cancelación si la pantalla se desmonta.
  */
-export const ChatPanel: React.FC<ChatPanelProps> = ({ token }) => {
+export const ChatPanel: React.FC<ChatPanelProps> = ({
+  token,
+  onView,
+  endpoint = "chat",
+  extraBody,
+}) => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const cancelledRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const failedMessage = messages.find((m) => m.failed);
 
   // Al salir de la pantalla no se aplican respuestas que lleguen después.
   useEffect(() => {
@@ -32,8 +41,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token }) => {
   async function send(text: string, userMessageId: string) {
     setBusy(true);
     try {
-      const data = await apiPost<{ response: string }>("chat", { message: text }, token);
+      const data = await apiPost<{ response: string; view?: ChatView | null }>(
+        endpoint,
+        { ...extraBody, message: text },
+        token,
+      );
       if (cancelledRef.current) return;
+      if (data.view) onView?.(data.view);
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: "assistant", text: data.response },
@@ -60,39 +74,53 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({ token }) => {
 
   function retry(message: ChatMessage) {
     if (busy) return;
-    setMessages((prev) => prev.map((m) => (m.id === message.id ? { ...m, failed: false } : m)));
+    setMessages((prev) =>
+      prev.map((m) => (m.id === message.id ? { ...m, failed: false } : m)),
+    );
     void send(message.text, message.id);
   }
 
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex min-h-72 flex-col gap-3 rounded-lg border border-hairline-soft p-6">
-        {messages.length === 0 && <p className="text-sm text-steel">{t("chat.empty")}</p>}
+    <section className="relative flex h-full min-h-0 flex-col gap-6">
+      <img
+        src={BloubAttentif}
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-4 right-4 h-12 w-12 -scale-x-100"
+      />
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-lg border border-hairline-soft p-6">
+        {messages.length === 0 && (
+          <p className="text-sm text-steel">{t("chat.empty")}</p>
+        )}
 
         {messages.map((m) => (
           <div
             key={m.id}
             className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
-              m.role === "user" ? "self-end bg-ink text-white" : "self-start border border-beige-deep bg-cream"
+              m.role === "user"
+                ? "self-end bg-ink text-white"
+                : "self-start border border-beige-deep bg-cream"
             }`}
           >
             <span className="mb-1 block text-xs opacity-70">
               {m.role === "user" ? t("chat.you") : t("chat.assistant")}
             </span>
             <span className="whitespace-pre-wrap">{m.text}</span>
-            {m.failed && (
-              <button
-                type="button"
-                onClick={() => retry(m)}
-                disabled={busy}
-                className="mt-2 block text-xs font-medium text-primary-deep underline disabled:opacity-50"
-              >
-                {t("chat.retry")}
-              </button>
-            )}
           </div>
         ))}
 
+        {failedMessage && (
+          <Alert
+            variant="error"
+            action={{
+              label: t("chat.retry"),
+              onClick: () => retry(failedMessage),
+              disabled: busy,
+            }}
+          >
+            {t("chat.errorSend")}
+          </Alert>
+        )}
         {busy && <p className="text-xs text-steel">{t("chat.thinking")}</p>}
         <div ref={bottomRef} />
       </div>

@@ -2,24 +2,12 @@ import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { apiPost, ApiRequestError } from "../api";
-import { saveSession, type Session } from "../session";
-
-type Tab = "accountant" | "client";
-
-interface AccountantLoginData {
-  token: string;
-  username: string;
-}
-
-interface ClientLoginData {
-  token: string;
-  tenant_id: string;
-  must_change_password: boolean;
-}
-
-interface ChangePasswordData {
-  token: string;
-}
+import { saveSession, type Session, type Tab } from "@/shared";
+import type {
+  AccountantLoginData,
+  ChangePasswordData,
+  ClientLoginData,
+} from "@/types";
 
 export function LoginPage() {
   const { t } = useTranslation();
@@ -31,7 +19,9 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   /** Token del cliente con contraseña temporal, mientras cambia la contraseña. */
-  const [pendingClient, setPendingClient] = useState<ClientLoginData | null>(null);
+  const [pendingClient, setPendingClient] = useState<ClientLoginData | null>(
+    null,
+  );
 
   async function submitLogin(event: FormEvent) {
     event.preventDefault();
@@ -39,19 +29,29 @@ export function LoginPage() {
     setBusy(true);
     try {
       if (tab === "accountant") {
-        const data = await apiPost<AccountantLoginData>("accountant/auth/login", {
-          username: identifier.trim(),
-          password,
-        });
-        const session: Session = { role: "accountant", token: data.token, username: data.username };
+        const data = await apiPost<AccountantLoginData>(
+          "accountant/auth/login",
+          {
+            username: identifier.trim(),
+            password,
+          },
+        );
+        const session: Session = {
+          role: "accountant",
+          token: data.token,
+          username: data.username,
+        };
         saveSession(session);
         navigate("/contador/clientes", { replace: true });
         return;
       }
-      const data = await apiPost<ClientLoginData>("tenant/auth/password-login", {
-        tenant_id: identifier.trim(),
-        password,
-      });
+      const data = await apiPost<ClientLoginData>(
+        "tenant/auth/password-login",
+        {
+          tenant_id: identifier.trim(),
+          password,
+        },
+      );
       if (data.must_change_password) {
         setPendingClient(data);
         return;
@@ -64,7 +64,11 @@ export function LoginPage() {
       });
       navigate("/cliente/gastos", { replace: true });
     } catch (err) {
-      setError(err instanceof ApiRequestError && err.info.status === 401 ? t("login.invalid") : t("errors.generic"));
+      setError(
+        err instanceof ApiRequestError && err.info.status === 401
+          ? t("login.invalid")
+          : t("errors.generic"),
+      );
     } finally {
       setBusy(false);
     }
@@ -97,7 +101,9 @@ export function LoginPage() {
 
   const tabClass = (active: boolean) =>
     `flex-1 rounded-lg border px-4 py-2 text-sm font-medium ${
-      active ? "border-ink bg-ink text-white" : "border-hairline-strong text-steel"
+      active
+        ? "border-ink bg-ink text-white"
+        : "border-hairline-strong text-steel"
     }`;
 
   return (
@@ -105,7 +111,10 @@ export function LoginPage() {
       <h1 className="mb-8 font-serif text-4xl">{t("app.name")}</h1>
 
       {pendingClient ? (
-        <form onSubmit={submitNewPassword} className="flex flex-col gap-4 rounded-lg border border-hairline-soft p-6">
+        <form
+          onSubmit={submitNewPassword}
+          className="flex flex-col gap-4 rounded-lg border border-hairline-soft p-6"
+        >
           <h2 className="text-lg font-medium">{t("login.changePassword")}</h2>
           <label className="flex flex-col gap-1 text-sm text-slate">
             {t("login.newPassword")}
@@ -128,12 +137,23 @@ export function LoginPage() {
           </button>
         </form>
       ) : (
-        <form onSubmit={submitLogin} className="flex flex-col gap-4 rounded-lg border border-hairline-soft p-6">
+        <form
+          onSubmit={submitLogin}
+          className="flex flex-col gap-4 rounded-lg border border-hairline-soft p-6"
+        >
           <div className="flex gap-2">
-            <button type="button" className={tabClass(tab === "accountant")} onClick={() => setTab("accountant")}>
+            <button
+              type="button"
+              className={tabClass(tab === "accountant")}
+              onClick={() => setTab("accountant")}
+            >
               {t("login.accountantTab")}
             </button>
-            <button type="button" className={tabClass(tab === "client")} onClick={() => setTab("client")}>
+            <button
+              type="button"
+              className={tabClass(tab === "client")}
+              onClick={() => setTab("client")}
+            >
               {t("login.clientTab")}
             </button>
           </div>

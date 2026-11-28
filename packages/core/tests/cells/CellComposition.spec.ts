@@ -93,15 +93,15 @@ describe("CellServer - composición inyectable", () => {
             tools: [],
           },
           {
-            type: "example",
+            type: "fixture",
             description: "Cell de ejemplo",
-            tools: ["example_tool"],
+            tools: ["fixture_tool"],
           },
         ],
       },
       registrations: [
         {
-          type: "example",
+          type: "fixture",
           factory: (context) => {
             factoryContext = context;
             return [{ key: "fixture", molecule: fixture }];
@@ -109,7 +109,7 @@ describe("CellServer - composición inyectable", () => {
           registerTools: (server, context) => {
             registrarContext = context;
             server.registerTool(
-              "example_tool",
+              "fixture_tool",
               {
                 description: "Tool de prueba de la cell de ejemplo",
                 inputSchema: { value: z.string() },
@@ -129,15 +129,15 @@ describe("CellServer - composición inyectable", () => {
     };
 
     const exampleEntry = composition.registry.cells.find(
-      (entry) => entry.type === "example",
+      (entry) => entry.type === "fixture",
     );
-    expect(exampleEntry?.tools).toEqual(["example_tool"]);
+    expect(exampleEntry?.tools).toEqual(["fixture_tool"]);
 
     cell = new CellServer({
       composition,
       tenantId: "composition-test",
       context: { source: "fixture" },
-      allowedCells: ["example"],
+      allowedCells: ["fixture"],
     });
     const client = new Client({
       name: "cell-composition-test",
@@ -155,19 +155,19 @@ describe("CellServer - composición inyectable", () => {
 
     await client.callTool({
       name: "stimulate_differentiation",
-      arguments: { type: "example" },
+      arguments: { type: "fixture" },
     });
 
     const activeTools = await client.listTools();
     expect(activeTools.tools.map((tool) => tool.name)).toContain(
-      "example_tool",
+      "fixture_tool",
     );
     expect(factoryContext?.tenantId).toBe("composition-test");
     expect(registrarContext?.values["source"]).toBe("fixture");
     expect(fixture.initializeCount).toBe(1);
 
     const result = await client.callTool({
-      name: "example_tool",
+      name: "fixture_tool",
       arguments: { value: "example-value" },
     });
     expect("content" in result).toBe(true);
@@ -188,7 +188,7 @@ describe("CellServer - composición inyectable", () => {
       registry: {
         cells: [
           { type: "undifferentiated", description: "Inicial", tools: [] },
-          { type: "example", description: "Ejemplo", tools: ["example_tool"] },
+          { type: "fixture", description: "Ejemplo", tools: ["fixture_tool"] },
           { type: "base", description: "Base", tools: ["base_tool"] },
           {
             type: "other",
@@ -211,14 +211,14 @@ describe("CellServer - composición inyectable", () => {
           },
         },
         {
-          type: "example",
-          factory: () => [{ key: "example", molecule: exampleFixture }],
+          type: "fixture",
+          factory: () => [{ key: "fixture", molecule: exampleFixture }],
           registerTools: (server) => {
             server.registerTool(
-              "example_tool",
+              "fixture_tool",
               { description: "Example", inputSchema: {} },
               async () => ({
-                content: [{ type: "text", text: "example" }],
+                content: [{ type: "text", text: "fixture" }],
               }),
             );
           },
@@ -242,7 +242,7 @@ describe("CellServer - composición inyectable", () => {
     cell = new CellServer({
       composition,
       tenantId: "remutation-test",
-      allowedCells: ["example", "other"],
+      allowedCells: ["fixture", "other"],
     });
     const client = new Client({ name: "remutation-test", version: "1.0.0" });
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
@@ -256,10 +256,10 @@ describe("CellServer - composición inyectable", () => {
         arguments: { type },
       });
 
-    await stimulate("example");
+    await stimulate("fixture");
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
       "stimulate_differentiation",
-      "example_tool",
+      "fixture_tool",
     ]);
 
     await stimulate("other");
@@ -271,10 +271,10 @@ describe("CellServer - composición inyectable", () => {
     expect(exampleFixture.disposeCount).toBe(1);
     expect(parentFixture.disposeCount).toBe(0);
 
-    await stimulate("example");
+    await stimulate("fixture");
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual([
       "stimulate_differentiation",
-      "example_tool",
+      "fixture_tool",
     ]);
     expect(parentFixture.disposeCount).toBe(1);
     expect(otherFixture.disposeCount).toBe(1);
@@ -511,12 +511,12 @@ describe("CellServer - composición inyectable", () => {
             description: "Estado inicial",
             tools: [],
           },
-          { type: "example", description: "Cell de ejemplo", tools: [] },
+          { type: "fixture", description: "Cell de ejemplo", tools: [] },
         ],
       },
       registrations: [
         {
-          type: "example",
+          type: "fixture",
           factory: () => [{ key: "fixture", molecule: fixture }],
           registerTools: () => undefined,
         },
@@ -526,7 +526,7 @@ describe("CellServer - composición inyectable", () => {
     cell = new CellServer({
       composition,
       tenantId: "dispose-test",
-      allowedCells: ["example"],
+      allowedCells: ["fixture"],
     });
     const client = new Client({ name: "cell-dispose-test", version: "1.0.0" });
     const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
@@ -536,7 +536,7 @@ describe("CellServer - composición inyectable", () => {
 
     await client.callTool({
       name: "stimulate_differentiation",
-      arguments: { type: "example" },
+      arguments: { type: "fixture" },
     });
     await cell.dispose();
     await cell.dispose();

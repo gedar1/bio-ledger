@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { ChainDefinitionSchema } from "./chainSchema.js";
 import { BioCoreError } from "../errors.js";
-import { DOMAIN_PROFILE_ID, domainProfile } from "./domain-profile.js";
 
 const ProfileIdSchema = z
   .string()
@@ -49,9 +48,12 @@ interface ProfileStore {
   defaultProfile: string;
 }
 
+/** Perfil de tenant por defecto. Debe coincidir con TENANT_PROFILE en .env. */
+export const DEFAULT_TENANT_PROFILE = "ledger";
+
 const store: ProfileStore = {
-  profiles: new Map([[DOMAIN_PROFILE_ID, domainProfile]]),
-  defaultProfile: DOMAIN_PROFILE_ID,
+  profiles: new Map(),
+  defaultProfile: DEFAULT_TENANT_PROFILE,
 };
 
 /**

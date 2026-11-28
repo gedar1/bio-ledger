@@ -16,3 +16,15 @@ export function openApiProblem(input: StartupInput): string | null {
   if (input.deploymentMode !== "studio") return null;
   return "DEPLOYMENT_MODE=studio requiere API_SECRET. Define API_SECRET en .env. Para desarrollo local sin autenticación, define ALLOW_OPEN_API=true.";
 }
+
+/** Mensaje de error si TENANT_PROFILE falta o no está registrado; null si es válido. */
+export function tenantProfileProblem(
+  profile: string | undefined,
+  registered: readonly string[],
+): string | null {
+  if (!profile) return "TENANT_PROFILE es obligatorio. Define TENANT_PROFILE en .env (por ejemplo, ledger).";
+  if (!registered.includes(profile)) {
+    return `TENANT_PROFILE=${profile} no está registrado. Perfiles disponibles: ${registered.join(", ")}.`;
+  }
+  return null;
+}

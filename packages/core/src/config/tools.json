@@ -22,13 +22,5 @@
   "ws_send": "Envía un mensaje a un cliente WebSocket específico por su ID",
   "ws_broadcast": "Envía un mensaje a todos los clientes WebSocket conectados",
   "ws_list_clients": "Lista todos los clientes WebSocket conectados",
-  "ws_disconnect_client": "Desconecta un cliente WebSocket específico por su ID",
-  "list_my_expenses": "Lista los gastos registrados del cliente, uno por línea, para revisarlos. No sirve para totales ni para el estado de cuenta: para cuánto gastó en un mes usa get_my_statement.",
-  "get_my_statement": "Estado de cuenta del cliente: cuánto gastó, y cuánto tiene aprobado, pendiente y anulado en un mes o trimestre (AAAA-MM o AAAA-Tn). Es la herramienta para totales de un periodo; no hace falta combinarla con list_my_expenses. Si la pregunta es por categorías, usa get_my_category_totals sola, sin esta.",
-  "list_my_categories": "Lista las categorías de gasto del cliente.",
-  "list_pending_expenses": "Lista los gastos pendientes de revisión del cliente seleccionado.",
-  "get_client_statement": "Estado de cuenta del cliente seleccionado para un periodo AAAA-MM o AAAA-Tn, con deducible y sin soporte.",
-  "get_my_month_statement": "Estado de cuenta del cliente del mes actual, sin periodo. Solo para preguntas del mes en curso; para otro mes o trimestre usa get_my_statement.",
-  "get_my_month_category_totals": "Solo para el mes actual, sin periodo: cuánto gastó el cliente por categoría (aprobado y pendiente), de mayor a menor. No la uses si la pregunta nombra un mes (marzo, abril, etc.) o un trimestre: en ese caso usa get_my_category_totals con ese periodo.",
-  "get_my_category_totals": "Cuánto gastó el cliente por categoría (aprobado y pendiente) en un mes o trimestre indicado (AAAA-MM o AAAA-Tn), de mayor a menor. Úsala cuando pida el desglose por categoría de otro mes o trimestre. Requiere periodo. Es completa por sí sola: no la combines con get_my_statement."
+  "ws_disconnect_client": "Desconecta un cliente WebSocket específico por su ID"
 }

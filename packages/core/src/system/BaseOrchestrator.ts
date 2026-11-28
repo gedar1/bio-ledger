@@ -9,6 +9,7 @@ import {
   MutationError,
 } from "../errors.js";
 import { deduplicateTools, checkExecutionSafety } from "../atoms/index.js";
+import { extractChatView, type ChatView } from "../atoms/chatView.js";
 import type { ILogger } from "../config/ILogger.js";
 import type { IOrchestrator } from "./interfaces/IOrchestrator.js";
 import type { IStimulus } from "./interfaces/IStimulus.js";
@@ -19,6 +20,7 @@ import {
   DefaultHistoryManager,
   DefaultPerfTracker,
 } from "./strategies/index.js";
+import type { ToolGuard } from "../atoms/accountantScope.js";
 import type {
   IReflexExecutor,
   IHistoryManager,
@@ -76,6 +78,15 @@ export abstract class BaseOrchestrator implements IOrchestrator {
 
   /** Input del usuario de la sesión actual — usado por el guardrail de ejecución. */
   protected _currentUserInput: string = "";
+  /** Validador de llamadas a herramientas para el turno actual. Null si no hay restricción. */
+  private _toolGuard: ToolGuard | null = null;
+
+  /** Activa o quita el validador de herramientas. Lo usa el chat del contador por turno. */
+  public setToolGuard(guard: ToolGuard | null): void {
+    this._toolGuard = guard;
+  }
+  /** Última vista de datos devuelta por una herramienta. Se mantiene hasta que llegue otra. */
+  protected _lastView: ChatView | null = null;
 
   constructor(sessionId?: string);
   constructor(options?: OrchestratorOptions);
@@ -220,8 +231,24 @@ export abstract class BaseOrchestrator implements IOrchestrator {
    * Si es stimulate_differentiation, difunde la mutación.
    * Registra automáticamente cada paso exitoso para la Memoria Refleja.
    */
+  /** Vista de datos más reciente de la sesión, o null si ninguna herramienta devolvió una. */
+  public currentView(): ChatView | null {
+    return this._lastView;
+  }
+
   public async executeAction(name: string, args: any): Promise<string> {
-    this.log.info("Ejecutando acción", { tool: name });
+    const tenantId =
+      typeof args?.tenantId === "string" ? args.tenantId : undefined;
+    this.log.info("Ejecutando acción", {
+      tool: name,
+      ...(tenantId ? { tenantId } : {}),
+    });
+
+    const blocked = this._toolGuard?.(name, args);
+    if (blocked) {
+      this.log.warn("Herramienta bloqueada por alcance", { tool: name });
+      return blocked;
+    }
 
     if (name === "stimulate_differentiation") {
       const cellType = args.type;
@@ -280,6 +307,8 @@ export abstract class BaseOrchestrator implements IOrchestrator {
             () => org.callTool(name, args),
             { tool: name },
           );
+          const view = extractChatView(result);
+          if (view) this._lastView = view;
           this.reflexExecutor.recordStep(
             { action: name, paramKeys: Object.keys(args || {}) },
             args || {},

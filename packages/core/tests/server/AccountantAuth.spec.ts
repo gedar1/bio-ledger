@@ -26,11 +26,15 @@ describe("cuenta del contador y acceso por tenant", () => {
     vi.stubEnv("DEPLOYMENT_MODE", "studio");
     vi.resetModules();
 
-    const accountant = await import("../../src/server/services/AccountantAuthService.js");
+    const accountant =
+      await import("../../src/server/services/AccountantAuthService.js");
     const schema = await import("../../src/server/services/platformSchema.js");
-    const registry = await import("../../src/server/services/TenantRegistryService.js");
-    const tenantAuth = await import("../../src/server/services/TenantAuthService.js");
-    const requestAccess = await import("../../src/server/middleware/requestAccess.js");
+    const registry =
+      await import("../../src/server/services/TenantRegistryService.js");
+    const tenantAuth =
+      await import("../../src/server/services/TenantAuthService.js");
+    const requestAccess =
+      await import("../../src/server/middleware/requestAccess.js");
     mods = {
       AccountantAuthService: accountant.AccountantAuthService,
       AccountantExistsError: accountant.AccountantExistsError,
@@ -85,17 +89,29 @@ describe("cuenta del contador y acceso por tenant", () => {
     });
 
     expect(account.id).toBe(1);
-    expect(await accountants.authenticate("contador", "clave-de-prueba-larga")).toEqual(account);
-    expect(await accountants.authenticate("contador", "clave-incorrecta-x")).toBeNull();
-    expect(await accountants.authenticate("otro", "clave-de-prueba-larga")).toBeNull();
+    expect(
+      await accountants.authenticate("contador", "clave-de-prueba-larga"),
+    ).toEqual(account);
+    expect(
+      await accountants.authenticate("contador", "clave-incorrecta-x"),
+    ).toBeNull();
+    expect(
+      await accountants.authenticate("otro", "clave-de-prueba-larga"),
+    ).toBeNull();
   });
 
   it("no permite una segunda cuenta de contador", async () => {
     const accountants = new mods.AccountantAuthService(db);
-    await accountants.createAccountant({ username: "contador", password: "clave-de-prueba-larga" });
+    await accountants.createAccountant({
+      username: "contador",
+      password: "clave-de-prueba-larga",
+    });
 
     await expect(
-      accountants.createAccountant({ username: "segundo", password: "clave-de-prueba-larga" }),
+      accountants.createAccountant({
+        username: "segundo",
+        password: "clave-de-prueba-larga",
+      }),
     ).rejects.toBeInstanceOf(mods.AccountantExistsError);
   });
 
@@ -103,7 +119,10 @@ describe("cuenta del contador y acceso por tenant", () => {
     const accountants = new mods.AccountantAuthService(db);
 
     await expect(
-      accountants.createAccountant({ username: "Contador", password: "clave-de-prueba-larga" }),
+      accountants.createAccountant({
+        username: "Contador",
+        password: "clave-de-prueba-larga",
+      }),
     ).rejects.toThrow();
     await expect(
       accountants.createAccountant({ username: "contador", password: "corta" }),
@@ -114,13 +133,22 @@ describe("cuenta del contador y acceso por tenant", () => {
     const { tenantAuth, token } = await setup();
     const header = `Bearer ${token}`;
 
-    const own = mods.resolveTenantAccess({ tenantId: "cliente-propio", _authHeader: header }, tenantAuth);
+    const own = mods.resolveTenantAccess(
+      { tenantId: "cliente-propio", _authHeader: header },
+      tenantAuth,
+    );
     expect(own).toEqual({ ok: true, tenantId: "cliente-propio" });
 
-    const other = mods.resolveTenantAccess({ tenantId: "cliente-ajeno", _authHeader: header }, tenantAuth);
+    const other = mods.resolveTenantAccess(
+      { tenantId: "cliente-ajeno", _authHeader: header },
+      tenantAuth,
+    );
     expect(other.ok).toBe(false);
 
-    const missing = mods.resolveTenantAccess({ _authHeader: header }, tenantAuth);
+    const missing = mods.resolveTenantAccess(
+      { _authHeader: header },
+      tenantAuth,
+    );
     expect(missing.ok).toBe(false);
   });
 
@@ -129,7 +157,8 @@ describe("cuenta del contador y acceso por tenant", () => {
     const verify = mods.buildTokenVerifier(() => tenantAuth);
     const header = `Bearer ${token}`;
 
-    expect(verify(header, "/api/chat")).toBe("allow");
+    expect(verify(header, "/api/accountant/chat")).toBe("allow");
+    expect(verify(header, "/api/chat")).toBe("forbidden");
     expect(verify(header, "/api/tools")).toBe("forbidden");
     expect(verify(header, "/api/tenants")).toBe("forbidden");
   });
@@ -144,8 +173,12 @@ describe("cuenta del contador y acceso por tenant", () => {
   it("el dueño de un tenant se compara con el id de la cuenta", async () => {
     const { tenantAuth, account } = await setup();
 
-    expect(tenantAuth.accountOwnsTenant(account.id, "cliente-propio")).toBe(true);
-    expect(tenantAuth.accountOwnsTenant(account.id, "cliente-ajeno")).toBe(false);
+    expect(tenantAuth.accountOwnsTenant(account.id, "cliente-propio")).toBe(
+      true,
+    );
+    expect(tenantAuth.accountOwnsTenant(account.id, "cliente-ajeno")).toBe(
+      false,
+    );
     expect(tenantAuth.accountOwnsTenant(account.id, "no-existe")).toBe(false);
   });
 });
